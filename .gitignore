@@ -1,0 +1,21 @@
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Experiments
+mlruns/
+
+# Secrets
+.env
+
+# Phase 0 exploration outputs (reproducible with explore/*.py)
+explore/output/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
