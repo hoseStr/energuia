@@ -3,7 +3,6 @@
 import datetime as dt
 
 import pandas as pd
-
 from xm_rest import daily_total, fetch, hour_cols
 
 pd.set_option("display.width", 250)

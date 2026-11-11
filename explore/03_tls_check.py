@@ -10,10 +10,12 @@ HOST = "servapibi.xm.com.co"
 
 def try_ctx(name: str, ctx: ssl.SSLContext) -> None:
     try:
-        with socket.create_connection((HOST, 443), timeout=20) as s:
-            with ctx.wrap_socket(s, server_hostname=HOST) as ss:
-                cert = ss.getpeercert()
-                print(f"[OK]   {name}: issuer={dict(x[0] for x in cert['issuer'])}")
+        with (
+            socket.create_connection((HOST, 443), timeout=20) as s,
+            ctx.wrap_socket(s, server_hostname=HOST) as ss,
+        ):
+            cert = ss.getpeercert()
+            print(f"[OK]   {name}: issuer={dict(x[0] for x in cert['issuer'])}")
     except Exception as e:  # noqa: BLE001
         print(f"[FAIL] {name}: {e}")
 

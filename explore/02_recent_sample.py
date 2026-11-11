@@ -45,6 +45,8 @@ for metric in ["DemaReal", "DemaCome"]:
     vals = df[hour_cols].apply(pd.to_numeric, errors="coerce")
     print("hour cols:", len(hour_cols), hour_cols[:2], "...", hour_cols[-2:])
     print("NaN per day (last 10):")
-    print(pd.concat([df.Date, vals.isna().sum(axis=1).rename("n_nan")], axis=1).tail(10).to_string())
+    print(
+        pd.concat([df.Date, vals.isna().sum(axis=1).rename("n_nan")], axis=1).tail(10).to_string()
+    )
     print("daily totals GWh (last 10):")
     print(pd.concat([df.Date, (vals.sum(axis=1) / 1e6).rename("GWh")], axis=1).tail(10).to_string())

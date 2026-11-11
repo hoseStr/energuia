@@ -11,7 +11,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-
 from xm_rest import fetch, hour_cols
 
 SNAP = Path(__file__).parent / "output" / "snapshots"
@@ -34,8 +33,10 @@ def take() -> None:
         df.to_csv(SNAP / f"{m}_{now:%Y%m%dT%H%M}.csv", index=False)
         c = completeness(df)
         complete = c[c.ratio_vs_28d_median > 0.9].index.max().date()
-        print(f"{now:%Y-%m-%d %H:%M} {m:9s} last date={df.Date.max().date()} "
-              f"(D-{(today - df.Date.max().date()).days})  last complete={complete} (D-{(today - complete).days})")
+        print(
+            f"{now:%Y-%m-%d %H:%M} {m:9s} last date={df.Date.max().date()} "
+            f"(D-{(today - df.Date.max().date()).days})  last complete={complete} (D-{(today - complete).days})"
+        )
         print(c.tail(4).to_string())
 
 
@@ -64,12 +65,14 @@ def summary() -> None:
         taken = pd.Timestamp(df["fetched_at"].iloc[0])
         c = completeness(df)
         complete = c[c.ratio_vs_28d_median > 0.9].index.max()
-        rows.append({
-            "metric": f.stem.split("_")[0],
-            "taken": taken.strftime("%Y-%m-%d %a %H:%M"),
-            "last_returned": f"D-{(taken.normalize() - df.Date.max()).days}",
-            "last_complete": f"{complete:%a %m-%d} (D-{(taken.normalize() - complete).days})",
-        })
+        rows.append(
+            {
+                "metric": f.stem.split("_")[0],
+                "taken": taken.strftime("%Y-%m-%d %a %H:%M"),
+                "last_returned": f"D-{(taken.normalize() - df.Date.max()).days}",
+                "last_complete": f"{complete:%a %m-%d} (D-{(taken.normalize() - complete).days})",
+            }
+        )
     print(pd.DataFrame(rows).sort_values(["metric", "taken"]).to_string(index=False))
 
 

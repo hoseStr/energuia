@@ -8,9 +8,17 @@ import requests
 BASE = "https://servapibi.xm.com.co"
 
 
-def fetch(metric: str, entity: str, start: dt.date, end: dt.date, period: str = "hourly") -> pd.DataFrame:
+def fetch(
+    metric: str, entity: str, start: dt.date, end: dt.date, period: str = "hourly"
+) -> pd.DataFrame:
     """Fetch one window (<= 30 days) and return a wide DataFrame with a Date column."""
-    body = {"MetricId": metric, "StartDate": str(start), "EndDate": str(end), "Entity": entity, "Filter": []}
+    body = {
+        "MetricId": metric,
+        "StartDate": str(start),
+        "EndDate": str(end),
+        "Entity": entity,
+        "Filter": [],
+    }
     r = requests.post(f"{BASE}/{period}", json=body, timeout=120)
     if r.status_code == 400 and "No existen datos" in r.text:
         return pd.DataFrame()
