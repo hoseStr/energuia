@@ -12,3 +12,18 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 - **Compatibilidad Windows y Linux:** usar `pathlib`, no depender de comandos de shell específicos.
 - **Type hints y docstrings breves** en funciones públicas. Sin comentarios que repitan el código.
 - **Preguntar antes de** agregar una dependencia nueva, cambiar una decisión de la sección 3 o crear cuentas en servicios externos.
+
+## Forma de trabajo con el usuario
+
+- **Git lo maneja el usuario.** No ejecutar `git init`, `git add` ni `git commit`. Al cerrar cada fase, entregar un bloque con los comandos listos para copiar, agrupados en commits pequeños.
+- **Mensajes de commit en español**, con los prefijos de Conventional Commits en inglés (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
+- Conversación y documentos en `docs/` en español; código, identificadores y docstrings en inglés.
+- `uv` no está en el PATH de la máquina del usuario: usar `python -m uv ...` (o `.venv/Scripts/python.exe` directamente).
+
+## Estado y hechos clave (detalles en `docs/data_notes.md` y `docs/decisions.md`)
+
+- Fase 0 terminada el 2026-11-10. Lo siguiente es la Fase 1 (ver los ajustes al inicio de esa sección en `PLAN.md`).
+- Variable objetivo: `DemaCome` / `Sistema` (kWh por hora). Feature adelantada: `Gene` / `Sistema`.
+- Cliente de datos: REST directo con `requests` (`POST https://servapibi.xm.com.co/hourly`), no `pydataxm`.
+- Los días recientes llegan parciales sin ninguna marca. `DemaCome` está completa hasta ~D−5 y `Gene` hasta ~D−3, con una sola medición. El usuario toma snapshots del 11 al 19 de noviembre de 2026 con `explore/08_snapshot.py` para confirmar si el retraso cuenta en días calendario o hábiles. Revisar `python -m uv run python explore/08_snapshot.py summary` antes de fijar `DATA_LAG_DAYS` en la Fase 2.
+- En esta máquina Windows, el almacén de certificados no tiene la raíz GlobalSign R46. `requests` funciona porque usa `certifi`; `aiohttp` y `ssl` por defecto fallan.

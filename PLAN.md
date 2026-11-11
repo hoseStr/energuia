@@ -121,11 +121,21 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 ### Fase 1 — Datos y baselines
 
-- [ ] `data/xm_client.py`: envoltorio fino sobre `pydataxm` con reintentos, timeout y errores explícitos.
-- [ ] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas).
-- [ ] Transformar de formato ancho (una columna por hora) a largo: `timestamp`, `demand`.
+> **Ajustes por la Fase 0** (ver `docs/data_notes.md` y `docs/decisions.md`): el cliente usa el **REST directo con `requests`** y no `pydataxm`; se ingieren **dos series**, `DemaCome` (objetivo) y `Gene` (feature adelantada), ambas con entidad `Sistema`; los días recientes llegan **parciales sin marca**. Antes de escribir código hay que convertir el proyecto en paquete: agregar `[build-system]` a `pyproject.toml` y crear el layout `src/demand_forecast/` para que funcione `uv run python -m demand_forecast.cli`.
+
+- [ ] `data/xm_client.py`: cliente REST fino (`POST https://servapibi.xm.com.co/hourly`) con reintentos, timeout y errores explícitos. Debe:
+  - partir los rangos en ventanas de 31 días como máximo;
+  - distinguir el 400 "No existen datos" (resultado vacío) del 400 "Rango de consulta supera..." (error de uso);
+  - convertir las horas de texto a número;
+  - hacer las peticiones de forma secuencial;
+  - no empezar ninguna ventana antes de 2000-01-01.
+- [ ] Quitar `pydataxm` de `pyproject.toml` cuando `xm_client.py` lo reemplace. Antes, reescribir `explore/01_inventory.py` y `explore/02_recent_sample.py`, que todavía lo importan, o anotar que dependen de él.
+- [ ] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas). En cada corrida debe **volver a descargar y sobrescribir los últimos N días** (configurable), porque los días parciales se completan después.
+- [ ] **Detección de días incompletos** con un umbral configurable: un día vale si su total es ≥ 90 % de la mediana de los 28 días completos anteriores. Los días incompletos se guardan marcados (o en `raw/`), pero no entran a `processed/` como verdad. Test con los días reales 2026-11-06 y 2026-11-07 como fixture.
+- [ ] Transformar de formato ancho (una columna por hora) a largo: `timestamp`, `demand`. `HourNN` corresponde a `Date + (NN−1) h` en `America/Bogota`.
 - [ ] `data/schema.py`: esquema Pandera (sin duplicados, frecuencia horaria completa, valores positivos, rango plausible).
-- [ ] Política de faltantes y atípicos documentada en `docs/decisions.md`. Marcar, no borrar en silencio.
+- [ ] `config.py`: `DATA_LAG_DAYS = 5` (provisional, pendiente de las mediciones del usuario del 11 al 19 de noviembre de 2026), las métricas, la URL, el umbral de completitud y la ventana de re-descarga.
+- [ ] Política de faltantes y atípicos documentada en `docs/decisions.md`. Marcar, no borrar en silencio (por ejemplo, el apagón del 2007-04-26 y los festivos; ver `data_notes.md` §4).
 - [ ] `models/baselines.py` y `models/backtest.py` con la evaluación walk-forward de la sección 4.
 - [ ] Un único notebook exploratorio en `notebooks/` con estacionalidad diaria, semanal, anual y efecto de festivos.
 - [ ] Tests: transformación ancho a largo, idempotencia de la ingesta, esquema, backtesting sin solapamiento entre train y test.
