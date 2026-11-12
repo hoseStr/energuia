@@ -1,4 +1,8 @@
-"""Phase 0: download recent hourly demand (DemaReal, DemaCome @ Sistema), inspect format and lag."""
+"""Phase 0: download recent hourly demand (DemaReal, DemaCome @ Sistema), inspect format and lag.
+
+Needs pydataxm, which is no longer a project dependency:
+    uv run --with pydataxm python explore/02_recent_sample.py
+"""
 
 import datetime as dt
 import json

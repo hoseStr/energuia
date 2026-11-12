@@ -3,10 +3,10 @@ name = "demand-forecast"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+    "holidays>=0.108",
     "pandas>=3.0.3",
     "pandera>=0.36.0",
     "pyarrow>=26.0.1",
-    "pydataxm>=0.3.19",
     "requests>=2.34.2",
     "typer>=0.29.0",
 ]
@@ -21,6 +21,11 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.4",
 ]
+notebook = [
+    "ipykernel>=7.4.0",
+    "matplotlib>=3.11.2",
+    "nbclient>=0.11.0",
+]
 
 [tool.ruff]
 line-length = 100
@@ -32,6 +37,8 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "PTH", "DTZ"]
 [tool.ruff.lint.per-file-ignores]
 # Phase 0 exploration scripts: local naive dates are intentional (measuring lag in Bogota time)
 "explore/*" = ["DTZ", "E501"]
+# Exploratory notebook: long f-strings in prints are fine
+"notebooks/*" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,4 +1,8 @@
-"""Phase 0: list XM API metric inventory and locate demand metrics."""
+"""Phase 0: list XM API metric inventory and locate demand metrics.
+
+Needs pydataxm, which is no longer a project dependency:
+    uv run --with pydataxm python explore/01_inventory.py
+"""
 
 from pathlib import Path
 
