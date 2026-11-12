@@ -37,6 +37,7 @@ Proyecto de portafolio para postulaciones como ML/AI Engineer. Lo que debe demos
 |---|---|---|
 | Lenguaje | Python 3.11 | Fijado en `.python-version`. El motivo original (`pydataxm` exige >= 3.10) ya no aplica |
 | Entorno y dependencias | `uv` con `pyproject.toml` y backend de build `uv_build` | Reproducible y rápido |
+| Festivos | Paquete `holidays` (Colombia) | Evita mantener a mano la Ley Emiliani y la Semana Santa |
 | Comandos | CLI con Typer: `uv run python -m demand_forecast.cli <comando>` | Debe funcionar igual en Windows (PowerShell) y en Linux (CI). **No usar Makefile** |
 | Datos | Parquet versionado dentro del repo (`data/`) | La serie es pequeña (24 valores por día); evita infraestructura |
 | Validación de datos | Pandera | Esquema explícito y testeable |
@@ -125,32 +126,34 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 >
 > **Preparación hecha el 2026-11-11:** el proyecto ya es un paquete instalable (`[build-system]` con `uv_build` y layout `src/demand_forecast/`), así que `uv run python -m demand_forecast.cli` funcionará en cuanto exista `cli.py`. El umbral de completitud bajó de 0,90 a 0,60 (ver `docs/data_notes.md` §3.1).
 
-- [ ] `data/xm_client.py`: cliente REST fino (`POST https://servapibi.xm.com.co/hourly`) con reintentos, timeout y errores explícitos. Debe:
-  - partir los rangos en ventanas de 31 días como máximo;
+- [x] `data/xm_client.py`: cliente REST fino (`POST https://servapibi.xm.com.co/hourly`) con reintentos, timeout y errores explícitos. Debe:
+  - partir los rangos en ventanas de 31 días calendario como máximo;
   - distinguir el 400 "No existen datos" (resultado vacío) del 400 "Rango de consulta supera..." (error de uso);
   - convertir las horas de texto a número;
   - hacer las peticiones de forma secuencial;
   - no empezar ninguna ventana antes de 2000-01-01.
-- [ ] Quitar `pydataxm` de `pyproject.toml` cuando `xm_client.py` lo reemplace. Antes, reescribir `explore/01_inventory.py` y `explore/02_recent_sample.py`, que todavía lo importan, o anotar que dependen de él.
-- [ ] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas). En cada corrida debe **volver a descargar y sobrescribir los últimos N días** (configurable), porque los días parciales se completan después y los completos se revisan (hasta un 0,04 % en días de hace 2 a 4 semanas; ver `docs/data_notes.md` §3.2). Valor inicial: N = 31, que cabe en una sola petición por serie.
-- [ ] **Detección de días incompletos** con umbrales configurables (evidencia en `docs/data_notes.md` §3.1). Un día vale si cumple las dos condiciones:
+- [x] Quitar `pydataxm` de `pyproject.toml` cuando `xm_client.py` lo reemplace. Antes, reescribir `explore/01_inventory.py` y `explore/02_recent_sample.py`, que todavía lo importan, o anotar que dependen de él. *(Se anotó: se corren con `uv run --with pydataxm python explore/<script>.py`.)*
+- [x] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas). En cada corrida debe **volver a descargar y sobrescribir los últimos N días** (configurable), porque los días parciales se completan después y los completos se revisan (hasta un 0,04 % en días de hace 2 a 4 semanas; ver `docs/data_notes.md` §3.2). Valor inicial: N = 31, que cabe en una sola petición por serie.
+- [x] **Detección de días incompletos** con umbrales configurables (evidencia en `docs/data_notes.md` §3.1). Un día vale si cumple las dos condiciones:
   - su total es ≥ **60 %** de la mediana de los 28 días completos anteriores (aplica a `DemaCome` y a `Gene`). No usar 90 %: rechaza el 17 % de los días completos, casi todos domingos y festivos;
-  - solo para `DemaCome`: su total es ≥ 95 % del total de `Gene` de ese mismo día, siempre que `Gene` ya esté completa. Esta comprobación cruzada cubre un día a medio llenar que supere el 60 %. **Provisional:** confirmarla o descartarla con los snapshots del 11 al 19 de noviembre de 2026.
+  - solo para `DemaCome`: su total es ≥ 95 % del total de `Gene` de ese mismo día, siempre que `Gene` ya esté completa. Esta comprobación cruzada cubre un día a medio llenar que supere el 60 %. En toda la historia (9 806 días) nunca rechaza un día completo. Los snapshots del 11 al 19 de noviembre de 2026 dirán si esos días a medio llenar existen.
 
   Los días incompletos se guardan marcados (o en `raw/`), pero no entran a `processed/` como verdad. Tests con los días reales 2026-11-06 y 2026-11-07 (parciales) y con un domingo y un festivo completos (por ejemplo 2026-11-01 y 2026-11-02) como fixtures.
-- [ ] Transformar de formato ancho (una columna por hora) a largo: `timestamp`, `demand`. `HourNN` corresponde a `Date + (NN−1) h` en `America/Bogota`.
-- [ ] `data/schema.py`: esquema Pandera (sin duplicados, frecuencia horaria completa, valores positivos, rango plausible).
-- [ ] `config.py`: `DATA_LAG_DAYS = 5` (provisional, pendiente de las mediciones del usuario del 11 al 19 de noviembre de 2026), las métricas, la URL, los umbrales de completitud (0,60 y 0,95) y la ventana de re-descarga.
-- [ ] Política de faltantes y atípicos documentada en `docs/decisions.md`. Marcar, no borrar en silencio (por ejemplo, el apagón del 2007-04-26 y los festivos; ver `data_notes.md` §4).
-- [ ] `models/baselines.py` y `models/backtest.py` con la evaluación walk-forward de la sección 4. La historia descargada ya está completa, así que el backtest debe **simular el corte de disponibilidad**: al emitir en `D` solo se ven datos hasta `D − DATA_LAG_DAYS`. Sin ese corte los baselines usarían datos que en producción no existen.
-- [ ] Un único notebook exploratorio en `notebooks/` con estacionalidad diaria, semanal, anual y efecto de festivos.
-- [ ] Tests: transformación ancho a largo, idempotencia de la ingesta, detección de días incompletos, esquema, backtesting sin solapamiento entre train y test y con el corte de disponibilidad respetado.
+- [x] Transformar de formato ancho (una columna por hora) a largo: `timestamp`, `value` (una tabla por serie). `HourNN` corresponde a `Date + (NN−1) h` en `America/Bogota`.
+- [x] `data/schema.py`: esquema Pandera (sin duplicados, frecuencia horaria completa, valores positivos, rango plausible).
+- [x] `config.py`: `DATA_LAG_DAYS = 5` (provisional, pendiente de las mediciones del usuario del 11 al 19 de noviembre de 2026), las métricas, la URL, los umbrales de completitud (0,60 y 0,95) y la ventana de re-descarga.
+- [x] Política de faltantes y atípicos documentada en `docs/decisions.md`. Marcar, no borrar en silencio (por ejemplo, el apagón del 2007-04-26 y los festivos; ver `data_notes.md` §4).
+- [x] `models/baselines.py` y `models/backtest.py` con la evaluación walk-forward de la sección 4. La historia descargada ya está completa, así que el backtest debe **simular el corte de disponibilidad**: al emitir en `D` solo se ven datos hasta `D − DATA_LAG_DAYS`. Sin ese corte los baselines usarían datos que en producción no existen.
+- [x] Un único notebook exploratorio en `notebooks/` con estacionalidad diaria, semanal, anual y efecto de festivos.
+- [x] Tests: transformación ancho a largo, idempotencia de la ingesta, detección de días incompletos, esquema, backtesting sin solapamiento entre train y test y con el corte de disponibilidad respetado.
 
 **Aceptación:** `uv run python -m demand_forecast.cli backtest --model seasonal-naive` imprime la tabla de métricas de ambos baselines, y los tests pasan.
 
+> **Cumplida el 2026-11-11** (143 tests). Backtest del 2025-11-01 al 2026-10-31: ingenuo estacional MAPE 3,40 %, promedio de 4 semanas MAPE 3,03 %. La meta de la sección 4 para la Fase 2 queda en un **MAPE ≤ 2,58 %** (15 % menos que el mejor baseline). Detalle en `docs/decisions.md`.
+
 ### Fase 2 — Modelo y experimentos
 
-- [ ] `features/build.py`: rezagos (respetando `horizonte + L`), medias y desviaciones móviles, hora, día de la semana, mes, festivos de Colombia (paquete `holidays`), víspera y día posterior a festivo.
+- [ ] `features/build.py`: rezagos (respetando `horizonte + L`), medias y desviaciones móviles, hora, día de la semana, mes, festivos de Colombia (paquete `holidays`, ya instalado y usado en `daytypes.py`), víspera y día posterior a festivo. Los hallazgos de `notebooks/01_exploration.ipynb` (§7) orientan qué features valen la pena.
 - [ ] **Test anti-fuga obligatorio:** para un timestamp objetivo, ninguna feature usa datos posteriores al momento de emisión. Construirlo antes que las features.
 - [ ] `models/train.py`: LightGBM con registro en MLflow de parámetros, métricas y versión de los datos.
 - [ ] Estrategia multi-horizonte: empezar con un solo modelo que use la hora objetivo como feature. Comparar con 24 modelos solo si sobra tiempo.

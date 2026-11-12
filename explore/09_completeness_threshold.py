@@ -1,6 +1,6 @@
 """Phase 0: which threshold separates partial days from complete ones? (offline)
 
-Reads the CSVs written by 05_history.py (DemaCome) and 07_gene_vs_demand.py (Gene).
+Reads the CSVs written by `05_history.py DemaCome` and `05_history.py Gene`.
 """
 
 from pathlib import Path
@@ -33,7 +33,7 @@ print(complete.nsmallest(5).round(3).to_string())
 print("  partial days:")
 print(partial.round(3).to_string())
 
-gene = daily_gwh(OUT / "Gene_last12m.csv")
+gene = daily_gwh(OUT / "Gene_full_history.csv")
 cross = (dema / gene).dropna()
 ok = cross[:LAST_COMPLETE]
 print(f"\nSignal 2: DemaCome / Gene daily totals ({len(ok)} complete days)")

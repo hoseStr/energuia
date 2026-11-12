@@ -2,6 +2,54 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-11: Fase 1, datos y baselines
+
+### Datos
+
+- **Un archivo Parquet por año y por serie.** `data/raw/<serie>/<año>.parquet` y `data/processed/<serie>/<año>.parquet`. Con un solo archivo por serie, cada corrida diaria reescribiría toda la historia y el repositorio crecería varios MB por commit. Así solo cambia el archivo del año en curso.
+- **Capa `raw`: una fila por día, tal como la publica XM**, incluidos los días parciales, más la columna `fetched_at`. Un día cuyos valores no cambiaron no se reescribe, así que `fetched_at` dice cuándo se vio cambiar ese día por última vez y dos corridas seguidas dejan los archivos idénticos byte a byte.
+- **Capa `processed`: serie horaria (`timestamp`, `value`, `anomaly`) solo con días completos y sin huecos.** Termina en el último día del tramo continuo de días completos que empieza en 2000-01-01. Si un día intermedio queda incompleto, los días posteriores se quedan fuera y la ingesta lo avisa con un warning; cuando XM lo complete, entran solos.
+- **Regla de completitud.** Un día vale si su total es ≥ 60 % de la mediana de los 28 días completos anteriores. Para `DemaCome` se exige además que sea ≥ 95 % del total de `Gene` de ese día, y que `Gene` esté completa. La comprobación cruzada dejó de ser una suposición: en los 9 806 días completos de la historia la razón nunca bajó de 0,9989 (`data_notes.md` §3.1). Los primeros 28 días de la historia no tienen referencia y se aceptan.
+- **Faltantes: no se imputa nada.** Un día con alguna hora nula cuenta como incompleto y no entra en `processed`. En 26 años de historia no hay ninguno.
+- **Atípicos: se marcan, no se borran.** La columna `anomaly` marca las horas que se desvían más de un 35 % de la mediana de esa misma hora en los 28 días anteriores. La regla solo mira hacia atrás, para que la marca de un día no dependa de datos publicados después. Las horas marcadas **siguen contando en la evaluación**; si se excluyen del entrenamiento se decide en la Fase 2.
+- **Rango plausible: entre 0,05 y 25 GWh por hora.** Fuera de ese rango la ingesta falla sin escribir nada. Cubre el apagón de 2007 (0,12 GWh) y deja margen sobre el máximo actual (12,2 GWh); un cambio de unidades de XM quedaría fuera.
+- **Ventanas de 31 días calendario por petición** (el límite de la API es una diferencia de 31 días entre fechas, es decir 32 días). La re-descarga diaria de 31 días cabe en una petición por serie.
+- **La ingesta descarga y valida todo antes de escribir.** Si XM falla a mitad de camino o una tabla no pasa el esquema, el disco queda como estaba.
+- **`DATA_DIR` es relativo al directorio de trabajo** (`data/`), y se puede cambiar con la variable de entorno `DEMAND_FORECAST_DATA_DIR`. Los comandos se corren desde la raíz del repo.
+
+### Evaluación
+
+- **Ventana de evaluación: los últimos 12 meses calendario completos**, con un fold por mes. "Los últimos 12 meses" de PLAN.md §4 se concretó así, antes de ver ningún resultado, para que la ventana no se mueva cada día y los folds coincidan con el reentrenamiento mensual.
+- **Corte de disponibilidad en el backtest.** Toda lectura del pasado pasa por `available_history`: un pronóstico emitido en `D` solo ve datos hasta `D − DATA_LAG_DAYS`. Hay tests que lo comprueban, entre ellos uno que altera los datos no publicados y verifica que el pronóstico no cambia.
+- **Baselines.** El ingenuo estacional repite el día más reciente ya publicado con el mismo día de la semana que el objetivo; con el retraso actual es el de 7 días antes. El promedio móvil promedia, hora a hora, los 4 más recientes. Ninguno trata los festivos de forma especial.
+- **Tipos de día: laboral, sábado, y domingo o festivo.** Un festivo cuenta como festivo caiga el día que caiga.
+
+### Resultado del backtest de los baselines
+
+Ventana del 2025-11-01 al 2026-10-31 (12 folds mensuales, 8 760 horas), pronóstico emitido un día antes con datos hasta 5 días antes de la emisión. Corrido el 2026-11-11 con datos completos hasta el 2026-11-06.
+
+| Modelo | MAE (MWh) | MAPE (%) |
+|---|---|---|
+| Ingenuo estacional | 338,6 | 3,40 |
+| Promedio de 4 semanas | 300,5 | 3,03 |
+
+- **Meta para la Fase 2:** MAPE ≤ 2,58 %, un 15 % menos que el mejor baseline (3,03 %).
+- **Dónde fallan:** el ingenuo estacional tiene un MAPE de 4,87 % en domingos y festivos, 3,13 % en días laborales y 2,67 % en sábados. Por hora, el peor tramo es de 14:00 a 17:00 (hasta 4,11 %).
+- **Atípicos en la ventana:** ninguna hora marcada, así que la decisión de no excluirlos no afecta estos números. En toda la historia hay 111 horas marcadas en 33 días, casi todas el 1 de enero y el 25 de diciembre, más las tres horas del apagón del 2007-04-26.
+- La ventana se mueve el primer día de cada mes, cuando el mes anterior queda completo. Los números de esta tabla valen para la ventana indicada.
+
+### Costos conocidos
+
+- **Tamaño de los datos en el repo:** 12 MB hoy (108 archivos). Cada corrida diaria reescribe los cuatro archivos del año en curso, unos 400 KB en total, lo que suma del orden de 150 MB al año en el historial de git. Si llega a molestar, las salidas son particionar el año en curso por mes o dejar de versionar `processed/`, que se puede regenerar desde `raw/`.
+- **`uv sync` a secas desinstala el grupo `notebook`.** Para conservarlo hay que usar siempre `uv sync --group notebook`.
+- **`jupyter execute` en Windows** lee el notebook con la codificación del sistema y falla con tildes. Hay que definir `PYTHONUTF8=1` antes de ejecutarlo.
+
+### Dependencias
+
+- **`holidays` se adelantó de la Fase 2 a la Fase 1** porque el desglose por tipo de día lo necesita. Aprobado por el usuario.
+- **Grupo `notebook` (`matplotlib`, `ipykernel`, `nbclient`)**, aparte del grupo `dev`, solo para el notebook exploratorio. Aprobado por el usuario. Se instala con `uv sync --group notebook`.
+- **`pydataxm` se quitó de `pyproject.toml`.** Los scripts `explore/01_inventory.py` y `explore/02_recent_sample.py` lo siguen usando y se corren con `uv run --with pydataxm python explore/<script>.py`.
+
 ## 2026-11-11: preparación de la Fase 1
 
 - **Umbral de completitud: 0,60 en lugar de 0,90.** Un día vale si su total es ≥ 60 % de la mediana de los 28 días completos anteriores. Con 0,90 se rechazaba el 17,4 % de los días completos de la historia (domingos y festivos), y `08_snapshot.py summary` podía reportar el último día completo con un día de error, que es justo la diferencia entre las hipótesis A y B del retraso. Evidencia en `data_notes.md` §3.1. Los snapshots crudos no cambian; solo cambia cómo se leen.

@@ -1,7 +1,7 @@
 # Notas de datos: API de XM (Fase 0)
 
 Reconocimiento hecho el **2026-11-10 entre 22:30 y 22:47 (hora de Bogotá, UTC−5)** con `pydataxm` 0.3.19, Python 3.11.18 y pandas 3.0.3.
-Cada afirmación remite al script de `explore/` que la reproduce (`uv run python explore/<script>.py`, ejecutado desde `explore/`). Las salidas crudas quedan en `explore/output/` (ignorado por git).
+Cada afirmación remite al script de `explore/` que la reproduce (`uv run python explore/<script>.py`, ejecutado desde `explore/`). Los scripts `01` y `02` usan `pydataxm`, que desde la Fase 1 ya no es dependencia del proyecto: se corren con `uv run --with pydataxm python explore/<script>.py`. Las salidas crudas quedan en `explore/output/` (ignorado por git).
 
 ## Resumen
 
@@ -90,7 +90,7 @@ Consecuencias para el diseño:
 
 ### 3.1 Umbral de completitud (agregado el 2026-11-11)
 
-`explore/09_completeness_threshold.py` (sin red; lee los CSV de `05_history.py` y `07_gene_vs_demand.py`).
+`explore/09_completeness_threshold.py` (sin red; lee los CSV de `05_history.py DemaCome` y `05_history.py Gene`).
 
 **Señal 1: total del día frente a la mediana de los 28 días anteriores.** Sobre los 9 778 días completos de `DemaCome` entre 2000-01-29 y 2026-11-05:
 
@@ -107,7 +107,7 @@ Consecuencias para el diseño:
 - El día completo más bajo de la historia es el 2006-01-01, con 0,725. Los días parciales observados están en 0,25–0,29.
 - **Umbral elegido: 0,60**, en el hueco entre 0,29 y 0,725. `08_snapshot.py` ya lo usa.
 
-**Señal 2: total diario de `DemaCome` frente al de `Gene`.** En los 370 días completos entre 2025-11-01 y 2026-11-05 la razón va de 0,9999 a 1,0247. En los dos días parciales es 0,28 y 0,26. No depende del día de la semana ni de los festivos.
+**Señal 2: total diario de `DemaCome` frente al de `Gene`.** En los 9 806 días completos entre 2000-01-01 y 2026-11-05 la razón va de 0,9989 a 1,0617: `DemaCome` nunca quedó más de un 0,11 % por debajo de `Gene`. En los dos días parciales es 0,28 y 0,26. No depende del día de la semana ni de los festivos. (La primera versión de esta nota usaba solo los últimos 12 meses; el 2026-11-11 se descargó la historia completa de `Gene` y la regla se mantuvo.)
 
 **Límite conocido de la señal 1.** Solo se han visto días parciales en un estado (~0,27). Si un día pasa por un estado intermedio con el mercado regulado completo y sin el no regulado, su razón sería ≈ 0,70 (el no regulado aporta ~74 de ~246 GWh) y superaría el umbral de 0,60. Ningún umbral sobre el total separa ese caso de un 1 de enero (0,725). Por eso la Fase 1 agrega la señal 2 como segunda condición para `DemaCome`, con umbral 0,95. Queda **por verificar** con los snapshots del 11 al 19 de noviembre de 2026 si esos estados intermedios existen: `08_snapshot.py summary` imprime las dos razones de los últimos 6 días de cada snapshot.
 
@@ -135,6 +135,7 @@ Consecuencias para el diseño:
 - **Primer día con datos: 2000-01-01**, tanto en `DemaCome` como en `DemaReal`. Antes de 2000 la API responde `400 "No existen datos..."`.
 - **Formato estable**: un único conjunto de columnas desde 2000-01-01 hasta 2026-11-07, con `Id` = `code` = `Sistema` en todas las filas.
 - **Integridad**: 9 808 días, **0 días faltantes**, 0 fechas duplicadas, 0 celdas nulas o vacías, 0 celdas no numéricas y 0 valores ≤ 0.
+- **`Gene`** (descargada completa el 2026-11-11 con `05_history.py Gene`): también empieza el 2000-01-01, con 9 809 días sin huecos, nulos ni duplicados. Su día completo más bajo frente a la mediana de 28 días es 0,726 (2006-01-01), igual que en `DemaCome`.
 - **Tendencia**: la media diaria pasa de 113 GWh en 2000 a 242 GWh en 2026. La caída de 2020 (COVID) se ve claramente: 193 frente a 197 en 2019. Hay deriva de nivel de largo plazo, lo que importa para elegir la ventana de entrenamiento.
 - **Atípicos reales (no errores de formato)**: 19 horas de `DemaCome` se desvían más de un 35 % de la mediana móvil de 15 días para esa hora. La mayoría son festivos (1 de enero, Semana Santa) y un evento claro:
   - **2007-04-26, horas 11 a 13**: 0,12 a 2,4 GWh frente a ~6,8 GWh. Es el apagón nacional de ese día.
