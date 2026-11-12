@@ -11,7 +11,7 @@ BASE = "https://servapibi.xm.com.co"
 def fetch(
     metric: str, entity: str, start: dt.date, end: dt.date, period: str = "hourly"
 ) -> pd.DataFrame:
-    """Fetch one window (<= 30 days) and return a wide DataFrame with a Date column."""
+    """Fetch one window (end - start <= 31 days) and return a wide DataFrame with a Date column."""
     body = {
         "MetricId": metric,
         "StartDate": str(start),

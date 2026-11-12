@@ -22,7 +22,8 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 
 ## Estado y hechos clave (detalles en `docs/data_notes.md` y `docs/decisions.md`)
 
-- Fase 0 terminada el 2026-11-10. Lo siguiente es la Fase 1 (ver los ajustes al inicio de esa sección en `PLAN.md`).
+- Fase 0 terminada el 2026-11-10. Lo siguiente es la Fase 1 (ver los ajustes al inicio de esa sección en `PLAN.md`). El proyecto ya es un paquete instalable (`src/demand_forecast/`, backend `uv_build`); todavía no hay `tests/`.
+- Un día está completo si su total es ≥ 60 % de la mediana de los 28 días completos anteriores (no 90 %: muchos domingos y festivos completos quedan entre 0,73 y 0,90). Para `DemaCome` se agrega, de forma provisional, que sea ≥ 95 % del total de `Gene` del mismo día.
 - Variable objetivo: `DemaCome` / `Sistema` (kWh por hora). Feature adelantada: `Gene` / `Sistema`.
 - Cliente de datos: REST directo con `requests` (`POST https://servapibi.xm.com.co/hourly`), no `pydataxm`.
 - Los días recientes llegan parciales sin ninguna marca. `DemaCome` está completa hasta ~D−5 y `Gene` hasta ~D−3, con una sola medición. El usuario toma snapshots del 11 al 19 de noviembre de 2026 con `explore/08_snapshot.py` para confirmar si el retraso cuenta en días calendario o hábiles. Revisar `python -m uv run python explore/08_snapshot.py summary` antes de fijar `DATA_LAG_DAYS` en la Fase 2.

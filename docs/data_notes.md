@@ -75,7 +75,7 @@ Respuesta cruda de `POST https://servapibi.xm.com.co/hourly`:
 En esos días parciales, además, `DemaCome` = `DemaReal` exactamente y `DemaRealNoReg` ≈ 0,7 GWh (lo normal son ~74). Falta casi todo el mercado no regulado, y la curva horaria tiene otra forma (pico al mediodía). **Un valor publicado no es un valor definitivo.**
 
 Consecuencias para el diseño:
-- La ingesta **debe detectar días incompletos** y no tratarlos como verdad. Propuesta: aceptar un día solo si su total es ≥ 90 % de la mediana de los 28 días completos anteriores (`08_snapshot.py` ya aplica esa regla). Así lo exige además el esquema de la Fase 1 (rango plausible).
+- La ingesta **debe detectar días incompletos** y no tratarlos como verdad. La regla y sus umbrales están en §3.1. La propuesta inicial (≥ 90 % de la mediana de los 28 días anteriores) se descartó el 2026-11-11 porque rechazaba domingos y festivos completos.
 - La ingesta incremental debe **re-descargar y sobrescribir los últimos N días**, no solo agregar días nuevos, porque los días parciales se completan después.
 - **Lag mínimo utilizable** si se emite en D para D+1: el último dato completo es D−5, así que la distancia hasta el día objetivo es de **6 días**. El rezago semanal (D+1−7 = D−6) **sí está disponible**, pero con un solo día de margen. El rezago de 1 día y el de 2 días **no se pueden usar**. Propuesta tentativa: `DATA_LAG_DAYS = 5`.
 
@@ -87,6 +87,29 @@ Consecuencias para el diseño:
   Si se cumple B, el último día completo varía entre D−3 y D−6 según el día de la semana y los festivos. Con un festivo un lunes el rezago semanal se queda sin margen, y en Semana Santa no estaría disponible. Para distinguirlas, correr `uv run python explore/08_snapshot.py` cada noche del 11 al 19 de noviembre de 2026 (esa semana incluye el festivo del lunes 16) y luego `uv run python explore/08_snapshot.py compare`.
 - **Revisiones posteriores.** XM liquida en varias versiones (preliminar, mensual, final). No está comprobado si los días ya "completos" cambian después. El snapshot del 2026-11-10 queda guardado en `explore/output/snapshots/` como línea base para compararlo.
 - **Hora del día de publicación.** No se sabe a qué hora se actualiza. Importa para fijar el cron del job diario.
+
+### 3.1 Umbral de completitud (agregado el 2026-11-11)
+
+`explore/09_completeness_threshold.py` (sin red; lee los CSV de `05_history.py` y `07_gene_vs_demand.py`).
+
+**Señal 1: total del día frente a la mediana de los 28 días anteriores.** Sobre los 9 778 días completos de `DemaCome` entre 2000-01-29 y 2026-11-05:
+
+| Umbral | Días completos rechazados |
+|---|---|
+| 0,90 | 1 706 (17,4 %) |
+| 0,85 | 625 (6,4 %) |
+| 0,80 | 74 (0,8 %) |
+| 0,75 | 13 (0,1 %) |
+| 0,70 | 0 |
+| 0,60 | 0 |
+
+- De los 1 706 rechazados con 0,90, 1 262 son domingos y 246 son lunes, el día al que se trasladan la mayoría de los festivos (no se cruzó con un calendario de festivos). En 2026, 34 de los 44 domingos quedan por debajo de 0,90; el rango de los domingos es 0,83–0,95.
+- El día completo más bajo de la historia es el 2006-01-01, con 0,725. Los días parciales observados están en 0,25–0,29.
+- **Umbral elegido: 0,60**, en el hueco entre 0,29 y 0,725. `08_snapshot.py` ya lo usa.
+
+**Señal 2: total diario de `DemaCome` frente al de `Gene`.** En los 370 días completos entre 2025-11-01 y 2026-11-05 la razón va de 0,9999 a 1,0247. En los dos días parciales es 0,28 y 0,26. No depende del día de la semana ni de los festivos.
+
+**Límite conocido de la señal 1.** Solo se han visto días parciales en un estado (~0,27). Si un día pasa por un estado intermedio con el mercado regulado completo y sin el no regulado, su razón sería ≈ 0,70 (el no regulado aporta ~74 de ~246 GWh) y superaría el umbral de 0,60. Ningún umbral sobre el total separa ese caso de un 1 de enero (0,725). Por eso la Fase 1 agrega la señal 2 como segunda condición para `DemaCome`, con umbral 0,95. Queda **por verificar** con los snapshots del 11 al 19 de noviembre de 2026 si esos estados intermedios existen: `08_snapshot.py summary` imprime las dos razones de los últimos 6 días de cada snapshot.
 
 ## 4. Profundidad de la historia y estabilidad del formato
 

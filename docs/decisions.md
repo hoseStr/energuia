@@ -2,6 +2,13 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-11: preparación de la Fase 1
+
+- **Umbral de completitud: 0,60 en lugar de 0,90.** Un día vale si su total es ≥ 60 % de la mediana de los 28 días completos anteriores. Con 0,90 se rechazaba el 17,4 % de los días completos de la historia (domingos y festivos), y `08_snapshot.py summary` podía reportar el último día completo con un día de error, que es justo la diferencia entre las hipótesis A y B del retraso. Evidencia en `data_notes.md` §3.1. Los snapshots crudos no cambian; solo cambia cómo se leen.
+- **Comprobación cruzada con `Gene` para `DemaCome` (provisional).** Además del umbral anterior, `DemaCome` debe ser ≥ 95 % del total de `Gene` del mismo día. Cubre un posible día a medio llenar que el umbral de 0,60 dejaría pasar. Se confirma o se descarta con los snapshots del 11 al 19 de noviembre de 2026.
+- **El backtest simula el corte de disponibilidad.** La historia descargada está completa, pero en producción al emitir en `D` solo hay datos hasta `D − DATA_LAG_DAYS`. Sin simularlo habría fuga temporal en los baselines.
+- **Paquete instalable con `uv_build`.** Se agregó `[build-system]` a `pyproject.toml` y el layout `src/demand_forecast/`. Se eligió `uv_build` porque viene con `uv` y no necesita configuración para el layout `src/`. No es una dependencia de ejecución.
+
 ## 2026-11-10: respuestas del usuario a la Fase 0
 
 - **Variable objetivo: `DemaCome`, entidad `Sistema`.** La justificación está en `data_notes.md` §1.

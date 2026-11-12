@@ -16,7 +16,7 @@ Proyecto de portafolio para postulaciones como ML/AI Engineer. Lo que debe demos
 
 **Objetivo del sistema:** cada día, de forma automática, pronosticar la demanda horaria de energía del Sistema Interconectado Nacional (SIN) de Colombia para el día siguiente (24 valores), y dejar evidencia pública de predicción contra dato real acumulada en el tiempo.
 
-**Fuente de datos:** API pública de XM (operador del mercado eléctrico), vía la librería `pydataxm`.
+**Fuente de datos:** API pública de XM (operador del mercado eléctrico), por REST directo con `requests`. La librería `pydataxm` se descartó en la Fase 0 (ver `docs/decisions.md`).
 
 **Resultado que verá un reclutador:**
 1. Un README que en menos de un minuto muestre el problema, la arquitectura, la tabla de resultados y los enlaces en vivo.
@@ -35,8 +35,8 @@ Proyecto de portafolio para postulaciones como ML/AI Engineer. Lo que debe demos
 
 | Tema | Decisión | Motivo |
 |---|---|---|
-| Lenguaje | Python 3.11 | `pydataxm` exige >= 3.10 |
-| Entorno y dependencias | `uv` con `pyproject.toml` | Reproducible y rápido |
+| Lenguaje | Python 3.11 | Fijado en `.python-version`. El motivo original (`pydataxm` exige >= 3.10) ya no aplica |
+| Entorno y dependencias | `uv` con `pyproject.toml` y backend de build `uv_build` | Reproducible y rápido |
 | Comandos | CLI con Typer: `uv run python -m demand_forecast.cli <comando>` | Debe funcionar igual en Windows (PowerShell) y en Linux (CI). **No usar Makefile** |
 | Datos | Parquet versionado dentro del repo (`data/`) | La serie es pequeña (24 valores por día); evita infraestructura |
 | Validación de datos | Pandera | Esquema explícito y testeable |
@@ -121,7 +121,9 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 ### Fase 1 — Datos y baselines
 
-> **Ajustes por la Fase 0** (ver `docs/data_notes.md` y `docs/decisions.md`): el cliente usa el **REST directo con `requests`** y no `pydataxm`; se ingieren **dos series**, `DemaCome` (objetivo) y `Gene` (feature adelantada), ambas con entidad `Sistema`; los días recientes llegan **parciales sin marca**. Antes de escribir código hay que convertir el proyecto en paquete: agregar `[build-system]` a `pyproject.toml` y crear el layout `src/demand_forecast/` para que funcione `uv run python -m demand_forecast.cli`.
+> **Ajustes por la Fase 0** (ver `docs/data_notes.md` y `docs/decisions.md`): el cliente usa el **REST directo con `requests`** y no `pydataxm`; se ingieren **dos series**, `DemaCome` (objetivo) y `Gene` (feature adelantada), ambas con entidad `Sistema`; los días recientes llegan **parciales sin marca**.
+>
+> **Preparación hecha el 2026-11-11:** el proyecto ya es un paquete instalable (`[build-system]` con `uv_build` y layout `src/demand_forecast/`), así que `uv run python -m demand_forecast.cli` funcionará en cuanto exista `cli.py`. El umbral de completitud bajó de 0,90 a 0,60 (ver `docs/data_notes.md` §3.1).
 
 - [ ] `data/xm_client.py`: cliente REST fino (`POST https://servapibi.xm.com.co/hourly`) con reintentos, timeout y errores explícitos. Debe:
   - partir los rangos en ventanas de 31 días como máximo;
@@ -131,14 +133,18 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
   - no empezar ninguna ventana antes de 2000-01-01.
 - [ ] Quitar `pydataxm` de `pyproject.toml` cuando `xm_client.py` lo reemplace. Antes, reescribir `explore/01_inventory.py` y `explore/02_recent_sample.py`, que todavía lo importan, o anotar que dependen de él.
 - [ ] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas). En cada corrida debe **volver a descargar y sobrescribir los últimos N días** (configurable), porque los días parciales se completan después.
-- [ ] **Detección de días incompletos** con un umbral configurable: un día vale si su total es ≥ 90 % de la mediana de los 28 días completos anteriores. Los días incompletos se guardan marcados (o en `raw/`), pero no entran a `processed/` como verdad. Test con los días reales 2026-11-06 y 2026-11-07 como fixture.
+- [ ] **Detección de días incompletos** con umbrales configurables (evidencia en `docs/data_notes.md` §3.1). Un día vale si cumple las dos condiciones:
+  - su total es ≥ **60 %** de la mediana de los 28 días completos anteriores (aplica a `DemaCome` y a `Gene`). No usar 90 %: rechaza el 17 % de los días completos, casi todos domingos y festivos;
+  - solo para `DemaCome`: su total es ≥ 95 % del total de `Gene` de ese mismo día, siempre que `Gene` ya esté completa. Esta comprobación cruzada cubre un día a medio llenar que supere el 60 %. **Provisional:** confirmarla o descartarla con los snapshots del 11 al 19 de noviembre de 2026.
+
+  Los días incompletos se guardan marcados (o en `raw/`), pero no entran a `processed/` como verdad. Tests con los días reales 2026-11-06 y 2026-11-07 (parciales) y con un domingo y un festivo completos (por ejemplo 2026-11-01 y 2026-11-02) como fixtures.
 - [ ] Transformar de formato ancho (una columna por hora) a largo: `timestamp`, `demand`. `HourNN` corresponde a `Date + (NN−1) h` en `America/Bogota`.
 - [ ] `data/schema.py`: esquema Pandera (sin duplicados, frecuencia horaria completa, valores positivos, rango plausible).
-- [ ] `config.py`: `DATA_LAG_DAYS = 5` (provisional, pendiente de las mediciones del usuario del 11 al 19 de noviembre de 2026), las métricas, la URL, el umbral de completitud y la ventana de re-descarga.
+- [ ] `config.py`: `DATA_LAG_DAYS = 5` (provisional, pendiente de las mediciones del usuario del 11 al 19 de noviembre de 2026), las métricas, la URL, los umbrales de completitud (0,60 y 0,95) y la ventana de re-descarga.
 - [ ] Política de faltantes y atípicos documentada en `docs/decisions.md`. Marcar, no borrar en silencio (por ejemplo, el apagón del 2007-04-26 y los festivos; ver `data_notes.md` §4).
-- [ ] `models/baselines.py` y `models/backtest.py` con la evaluación walk-forward de la sección 4.
+- [ ] `models/baselines.py` y `models/backtest.py` con la evaluación walk-forward de la sección 4. La historia descargada ya está completa, así que el backtest debe **simular el corte de disponibilidad**: al emitir en `D` solo se ven datos hasta `D − DATA_LAG_DAYS`. Sin ese corte los baselines usarían datos que en producción no existen.
 - [ ] Un único notebook exploratorio en `notebooks/` con estacionalidad diaria, semanal, anual y efecto de festivos.
-- [ ] Tests: transformación ancho a largo, idempotencia de la ingesta, esquema, backtesting sin solapamiento entre train y test.
+- [ ] Tests: transformación ancho a largo, idempotencia de la ingesta, detección de días incompletos, esquema, backtesting sin solapamiento entre train y test y con el corte de disponibilidad respetado.
 
 **Aceptación:** `uv run python -m demand_forecast.cli backtest --model seasonal-naive` imprime la tabla de métricas de ambos baselines, y los tests pasan.
 
