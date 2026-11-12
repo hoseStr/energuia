@@ -18,7 +18,7 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 - **Git lo maneja el usuario.** No ejecutar `git init`, `git add` ni `git commit`. Al cerrar cada fase, entregar un bloque con los comandos listos para copiar, agrupados en commits pequeños.
 - **Mensajes de commit en español**, con los prefijos de Conventional Commits en inglés (`feat:`, `fix:`, `test:`, `docs:`, `chore:`).
 - Conversación y documentos en `docs/` en español; código, identificadores y docstrings en inglés.
-- `uv` no está en el PATH de la máquina del usuario: usar `python -m uv ...` (o `.venv/Scripts/python.exe` directamente).
+- `uv` no está en el PATH de la máquina del usuario: usar `python -m uv ...` (o `.venv/Scripts/python.exe` directamente). Con el entorno virtual activado (`(demand-forecast)` en el prompt), `python -m uv` falla con "No module named uv" porque `uv` está instalado en el Python 3.12 del sistema; en ese caso usar `python <script>` a secas.
 
 ## Estado y hechos clave (detalles en `docs/data_notes.md` y `docs/decisions.md`)
 
@@ -26,5 +26,5 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 - Un día está completo si su total es ≥ 60 % de la mediana de los 28 días completos anteriores (no 90 %: muchos domingos y festivos completos quedan entre 0,73 y 0,90). Para `DemaCome` se agrega, de forma provisional, que sea ≥ 95 % del total de `Gene` del mismo día.
 - Variable objetivo: `DemaCome` / `Sistema` (kWh por hora). Feature adelantada: `Gene` / `Sistema`.
 - Cliente de datos: REST directo con `requests` (`POST https://servapibi.xm.com.co/hourly`), no `pydataxm`.
-- Los días recientes llegan parciales sin ninguna marca. `DemaCome` está completa hasta ~D−5 y `Gene` hasta ~D−3, con una sola medición. El usuario toma snapshots del 11 al 19 de noviembre de 2026 con `explore/08_snapshot.py` para confirmar si el retraso cuenta en días calendario o hábiles. Revisar `python -m uv run python explore/08_snapshot.py summary` antes de fijar `DATA_LAG_DAYS` en la Fase 2.
+- Los días recientes llegan parciales sin ninguna marca. `DemaCome` está completa hasta ~D−5 y `Gene` hasta ~D−3, con dos mediciones en días hábiles (10 y 11 de noviembre de 2026). Los días ya completos se revisan después, hasta un 0,04 %. El usuario toma snapshots hasta el 19 de noviembre de 2026 con `explore/08_snapshot.py`; los del 14 al 17 (fin de semana y festivo) deciden si XM también publica en días no hábiles. Revisar `python -m uv run python explore/08_snapshot.py summary` antes de fijar `DATA_LAG_DAYS` en la Fase 2.
 - En esta máquina Windows, el almacén de certificados no tiene la raíz GlobalSign R46. `requests` funciona porque usa `certifi`; `aiohttp` y `ssl` por defecto fallan.

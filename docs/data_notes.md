@@ -80,12 +80,12 @@ Consecuencias para el diseño:
 - **Lag mínimo utilizable** si se emite en D para D+1: el último dato completo es D−5, así que la distancia hasta el día objetivo es de **6 días**. El rezago semanal (D+1−7 = D−6) **sí está disponible**, pero con un solo día de margen. El rezago de 1 día y el de 2 días **no se pueden usar**. Propuesta tentativa: `DATA_LAG_DAYS = 5`.
 
 **Pendiente (por verificar):**
-- **Más mediciones.** Solo hay una, hecha un martes por la noche. Ese día el jueves 5 estaba completo y el viernes 6 no, lo que encaja con dos hipótesis distintas:
+- **Más mediciones.** La primera se hizo un martes por la noche (la segunda está en §3.2). Ese día el jueves 5 estaba completo y el viernes 6 no, lo que encaja con dos hipótesis distintas:
   - **A. Días calendario:** siempre está completo hasta D−5.
   - **B. Días hábiles:** un día queda completo cuando han pasado 3 días hábiles después de él.
 
   Si se cumple B, el último día completo varía entre D−3 y D−6 según el día de la semana y los festivos. Con un festivo un lunes el rezago semanal se queda sin margen, y en Semana Santa no estaría disponible. Para distinguirlas, correr `uv run python explore/08_snapshot.py` cada noche del 11 al 19 de noviembre de 2026 (esa semana incluye el festivo del lunes 16) y luego `uv run python explore/08_snapshot.py compare`.
-- **Revisiones posteriores.** XM liquida en varias versiones (preliminar, mensual, final). No está comprobado si los días ya "completos" cambian después. El snapshot del 2026-11-10 queda guardado en `explore/output/snapshots/` como línea base para compararlo.
+- **Revisiones posteriores.** XM liquida en varias versiones (preliminar, mensual, final). La segunda medición (§3.2) mostró que los días ya completos sí cambian, hasta un 0,039 % del total diario. Falta saber si hay revisiones mayores a más de 31 días.
 - **Hora del día de publicación.** No se sabe a qué hora se actualiza. Importa para fijar el cron del job diario.
 
 ### 3.1 Umbral de completitud (agregado el 2026-11-11)
@@ -110,6 +110,23 @@ Consecuencias para el diseño:
 **Señal 2: total diario de `DemaCome` frente al de `Gene`.** En los 370 días completos entre 2025-11-01 y 2026-11-05 la razón va de 0,9999 a 1,0247. En los dos días parciales es 0,28 y 0,26. No depende del día de la semana ni de los festivos.
 
 **Límite conocido de la señal 1.** Solo se han visto días parciales en un estado (~0,27). Si un día pasa por un estado intermedio con el mercado regulado completo y sin el no regulado, su razón sería ≈ 0,70 (el no regulado aporta ~74 de ~246 GWh) y superaría el umbral de 0,60. Ningún umbral sobre el total separa ese caso de un 1 de enero (0,725). Por eso la Fase 1 agrega la señal 2 como segunda condición para `DemaCome`, con umbral 0,95. Queda **por verificar** con los snapshots del 11 al 19 de noviembre de 2026 si esos estados intermedios existen: `08_snapshot.py summary` imprime las dos razones de los últimos 6 días de cada snapshot.
+
+### 3.2 Segunda medición (2026-11-11, miércoles, 21:54)
+
+`explore/08_snapshot.py` (`summary` y `compare`).
+
+| Métrica | Último día devuelto | Último día completo |
+|---|---|---|
+| `DemaCome` | 2026-11-08 (D−3) | **2026-11-06 (D−5)** |
+| `DemaReal` | 2026-11-08 (D−3) | 2026-11-06 (D−5) |
+| `Gene` | 2026-11-08 (D−3) | 2026-11-08 (D−3) |
+
+- **Mismo retraso que el martes:** `DemaCome` en D−5 y `Gene` en D−3.
+- **La hipótesis B, tal como estaba escrita, queda descartada.** Si un día se completara al pasar 3 días hábiles, el sábado 7 y el domingo 8 se habrían completado el miércoles 11 junto con el viernes 6 (lunes, martes y miércoles). Siguen parciales (0,25).
+- **Queda abierta una variante:** que XM solo avance en días hábiles. Los snapshots del jueves 12 y el viernes 13 no la distinguen de A (ambas predicen el sábado 7 y el domingo 8). Las noches que deciden son las del **sábado 14 al martes 17**: con A, el sábado 14 debe estar completo el lunes 9; con la variante, se queda en el domingo 8 hasta el martes 17.
+- **Un día pasa de parcial a completo de un salto.** El viernes 6 pasó de 71,71 a 254,54 GWh (razón de 0,29 a 1,04) entre las dos noches. El sábado 7 no cambió nada (61,06 GWh). No se vio ningún estado intermedio, aunque es una sola transición.
+- **Los días completos sí se revisan, pero muy poco.** Entre los dos snapshots cambiaron 9 días ya completos de `DemaCome` (11 a 13, 19 a 21 y 26 a 28 de octubre), con un cambio máximo del total diario de 0,039 %. `Gene` cambió en los mismos días y en la misma proporción. El 11 de octubre es el primer día de la ventana de 31 días, así que puede haber revisiones más antiguas que no se ven.
+- **El umbral de 0,60 se confirmó en vivo:** `Gene` del domingo 8 está completa con razón 0,885. Con 0,90 se habría reportado como incompleta.
 
 ## 4. Profundidad de la historia y estabilidad del formato
 

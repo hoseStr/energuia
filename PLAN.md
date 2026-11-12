@@ -105,7 +105,7 @@ Objetivo: reemplazar suposiciones por hechos antes de diseñar nada.
 - [x] Crear el proyecto con `uv` e instalar `pydataxm`.
 - [x] Listar las métricas con `ReadDB().get_collections()` y ubicar las de demanda. Candidatas: `DemaReal` y `DemaCome` con entidad `Sistema` **(por verificar)**. Elegir una y justificarlo.
 - [x] Descargar una semana y documentar: columnas, unidades, convención de horas (¿columnas `Hour01` a `Hour24`?), tipos y valores faltantes.
-- [ ] Medir el retraso de publicación `L`: última fecha disponible frente a la fecha de hoy. Repetir en dos días distintos si es posible. *(1 de 2 mediciones: 2026-11-10. Falta la segunda con `explore/08_snapshot.py`.)*
+- [x] Medir el retraso de publicación `L`: última fecha disponible frente a la fecha de hoy. Repetir en dos días distintos si es posible. *(2 mediciones, 2026-11-10 y 2026-11-11: `DemaCome` completa hasta D−5 en ambas. Falta ver qué pasa en fin de semana y festivo, con los snapshots del 14 al 17 de noviembre; ver `docs/data_notes.md` §3.2.)*
 - [x] Determinar desde qué fecha hay historia y descargar una muestra antigua para confirmar que el formato no cambió.
 - [x] Escribir los hallazgos en `docs/data_notes.md`.
 
@@ -132,7 +132,7 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
   - hacer las peticiones de forma secuencial;
   - no empezar ninguna ventana antes de 2000-01-01.
 - [ ] Quitar `pydataxm` de `pyproject.toml` cuando `xm_client.py` lo reemplace. Antes, reescribir `explore/01_inventory.py` y `explore/02_recent_sample.py`, que todavía lo importan, o anotar que dependen de él.
-- [ ] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas). En cada corrida debe **volver a descargar y sobrescribir los últimos N días** (configurable), porque los días parciales se completan después.
+- [ ] `data/ingest.py`: descarga histórica completa y descarga incremental **idempotente** (correrla dos veces no duplica filas). En cada corrida debe **volver a descargar y sobrescribir los últimos N días** (configurable), porque los días parciales se completan después y los completos se revisan (hasta un 0,04 % en días de hace 2 a 4 semanas; ver `docs/data_notes.md` §3.2). Valor inicial: N = 31, que cabe en una sola petición por serie.
 - [ ] **Detección de días incompletos** con umbrales configurables (evidencia en `docs/data_notes.md` §3.1). Un día vale si cumple las dos condiciones:
   - su total es ≥ **60 %** de la mediana de los 28 días completos anteriores (aplica a `DemaCome` y a `Gene`). No usar 90 %: rechaza el 17 % de los días completos, casi todos domingos y festivos;
   - solo para `DemaCome`: su total es ≥ 95 % del total de `Gene` de ese mismo día, siempre que `Gene` ya esté completa. Esta comprobación cruzada cubre un día a medio llenar que supere el 60 %. **Provisional:** confirmarla o descartarla con los snapshots del 11 al 19 de noviembre de 2026.
