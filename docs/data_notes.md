@@ -86,7 +86,7 @@ Consecuencias para el diseño:
 
   Si se cumple B, el último día completo varía entre D−3 y D−6 según el día de la semana y los festivos. Con un festivo un lunes el rezago semanal se queda sin margen, y en Semana Santa no estaría disponible. Para distinguirlas, correr `uv run python explore/08_snapshot.py` cada noche del 11 al 19 de noviembre de 2026 (esa semana incluye el festivo del lunes 16) y luego `uv run python explore/08_snapshot.py compare`.
 - **Revisiones posteriores.** XM liquida en varias versiones (preliminar, mensual, final). La segunda medición (§3.2) mostró que los días ya completos sí cambian, hasta un 0,039 % del total diario. Falta saber si hay revisiones mayores a más de 31 días.
-- **Hora del día de publicación.** No se sabe a qué hora se actualiza. Importa para fijar el cron del job diario.
+- **Hora del día de publicación.** No se sabe a qué hora se actualiza. Importa para fijar el cron del job diario. La tercera medición (§3.3) la acota: un viernes a las 11:02 el avance del día ya estaba publicado.
 
 ### 3.1 Umbral de completitud (agregado el 2026-11-11)
 
@@ -127,6 +127,22 @@ Consecuencias para el diseño:
 - **Un día pasa de parcial a completo de un salto.** El viernes 6 pasó de 71,71 a 254,54 GWh (razón de 0,29 a 1,04) entre las dos noches. El sábado 7 no cambió nada (61,06 GWh). No se vio ningún estado intermedio, aunque es una sola transición.
 - **Los días completos sí se revisan, pero muy poco.** Entre los dos snapshots cambiaron 9 días ya completos de `DemaCome` (11 a 13, 19 a 21 y 26 a 28 de octubre), con un cambio máximo del total diario de 0,039 %. `Gene` cambió en los mismos días y en la misma proporción. El 11 de octubre es el primer día de la ventana de 31 días, así que puede haber revisiones más antiguas que no se ven.
 - **El umbral de 0,60 se confirmó en vivo:** `Gene` del domingo 8 está completa con razón 0,885. Con 0,90 se habría reportado como incompleta.
+
+### 3.3 Tercera medición (2026-11-13, viernes, 11:02)
+
+`explore/08_snapshot.py` (`summary` y `compare`). No hay snapshot del jueves 12.
+
+| Métrica | Último día devuelto | Último día completo |
+|---|---|---|
+| `DemaCome` | 2026-11-10 (D−3) | **2026-11-08 (D−5)** |
+| `DemaReal` | 2026-11-10 (D−3) | 2026-11-08 (D−5) |
+| `Gene` | 2026-11-10 (D−3) | 2026-11-10 (D−3) |
+
+- **Mismo retraso por tercera vez, ahora medido por la mañana.** Las dos mediciones anteriores eran de alrededor de las 22:00. A las 11:02 `DemaCome` ya estaba completa hasta D−5 y `Gene` hasta D−3, así que ese día XM publicó antes de las 11:00. Un job que corra después de las 11:00 de Bogotá (16:00 UTC) habría visto lo mismo que uno nocturno. Es una sola medición diurna y no dice cuánto antes de las 11:00 se publica.
+- **No distingue la hipótesis A de la variante de días hábiles**, como se esperaba. El sábado 7 y el domingo 8 se completaron entre el miércoles a las 21:54 y el viernes a las 11:02; sin el snapshot del jueves no se sabe si entraron uno por día o los dos juntos. Siguen decidiendo las noches del sábado 14 al martes 17.
+- **Tampoco esta vez hubo estados intermedios.** La razón `DemaCome` / `Gene` del 7 y del 8 pasó de 0,26 y 0,29 a 1,00. Con el viernes 6 ya son tres transiciones observadas, todas de un salto.
+- **Ningún día completo de `DemaCome` cambió** entre el 11 y el 13 de noviembre (días del 13 de octubre al 6 de noviembre). `Gene` del 7 y del 8, que ya estaba completa el miércoles, cambió un 0,011 % y un 0,014 %, justo cuando se completó `DemaCome` de esos días.
+- La ingesta de ese mismo momento dejó `demand` completa hasta el 2026-11-08 y `generation` hasta el 2026-11-10. El backtest de los baselines no cambió (3,40 % y 3,03 %).
 
 ## 4. Profundidad de la historia y estabilidad del formato
 

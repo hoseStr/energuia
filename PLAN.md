@@ -42,7 +42,7 @@ Proyecto de portafolio para postulaciones como ML/AI Engineer. Lo que debe demos
 | Datos | Parquet versionado dentro del repo (`data/`) | La serie es pequeña (24 valores por día); evita infraestructura |
 | Validación de datos | Pandera | Esquema explícito y testeable |
 | Modelo | LightGBM | Estándar para series tabulares, rápido en CPU |
-| Experimentos | MLflow con almacenamiento local (`mlruns/` ignorado por git) | Seguimiento durante el desarrollo |
+| Experimentos | MLflow con almacenamiento local (`mlflow.db` y `mlruns/`, ignorados por git) | Seguimiento durante el desarrollo |
 | Registro de modelos | Archivo del modelo + `models/registry.json` en el repo | En CI no hay servidor MLflow persistente; esto es simple y auditable |
 | API | FastAPI + Docker | |
 | Automatización | GitHub Actions (cron) | Gratis en repos públicos |
@@ -106,7 +106,7 @@ Objetivo: reemplazar suposiciones por hechos antes de diseñar nada.
 - [x] Crear el proyecto con `uv` e instalar `pydataxm`.
 - [x] Listar las métricas con `ReadDB().get_collections()` y ubicar las de demanda. Candidatas: `DemaReal` y `DemaCome` con entidad `Sistema` **(por verificar)**. Elegir una y justificarlo.
 - [x] Descargar una semana y documentar: columnas, unidades, convención de horas (¿columnas `Hour01` a `Hour24`?), tipos y valores faltantes.
-- [x] Medir el retraso de publicación `L`: última fecha disponible frente a la fecha de hoy. Repetir en dos días distintos si es posible. *(2 mediciones, 2026-11-10 y 2026-11-11: `DemaCome` completa hasta D−5 en ambas. Falta ver qué pasa en fin de semana y festivo, con los snapshots del 14 al 17 de noviembre; ver `docs/data_notes.md` §3.2.)*
+- [x] Medir el retraso de publicación `L`: última fecha disponible frente a la fecha de hoy. Repetir en dos días distintos si es posible. *(3 mediciones, 2026-11-10, 2026-11-11 y 2026-11-13: `DemaCome` completa hasta D−5 en las tres. Falta ver qué pasa en fin de semana y festivo, con los snapshots del 14 al 17 de noviembre; ver `docs/data_notes.md` §3.2 y §3.3.)*
 - [x] Determinar desde qué fecha hay historia y descargar una muestra antigua para confirmar que el formato no cambió.
 - [x] Escribir los hallazgos en `docs/data_notes.md`.
 
@@ -153,6 +153,18 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 ### Fase 2 — Modelo y experimentos
 
+> **Ajustes por la Fase 1 y preparación hecha el 2026-11-13** (ver `docs/decisions.md`):
+>
+> - **Dos retrasos, ambos provisionales:** `DATA_LAG_DAYS = 5` para la demanda y `GENERATION_LAG_DAYS = 3` para `Gene`. Cada serie se corta con `available_history` y su propio retraso. `tests/test_config.py` impide bajarlos por debajo de lo medido.
+> - **Features respecto al corte de disponibilidad, no con rezagos fijos.** "El mismo día de la semana más reciente ya publicado", no "hace 7 días". Así la fase puede empezar antes de que los snapshots del 14 al 17 de noviembre fijen el retraso, y si este depende del día de emisión solo cambia el corte.
+> - **El protocolo `Forecaster` solo recibe la demanda.** Para usar `Gene` hay que ampliarlo, junto con `run_backtest`.
+> - **Comparar siempre en la misma ventana.** El comando `backtest` corre los baselines cada vez, así que basta con agregarle el modelo. La ventana pasa a 2025-12-01 a 2026-11-30 cuando noviembre quede completo en los datos (hacia el 5 de diciembre); los números de referencia de hoy (3,40 % y 3,03 %) valen para 2025-11-01 a 2026-10-31.
+> - **Dónde hay margen** (`notebooks/01_exploration.ipynb` §7): festivos entre semana (se comportan como domingos, −12,4 %), víspera (−4,1 %) y día siguiente (−2,7 %), interacción entre hora y tipo de día, y el nivel reciente. El mes aporta poco.
+> - **Decisión pendiente de la Fase 1:** si las horas marcadas como `anomaly` se excluyen del entrenamiento. En la evaluación siguen contando.
+
+- [x] Agregar `lightgbm` y `mlflow` a `pyproject.toml` y comprobar que funcionan con pandas 3 en Windows. *(Hecho el 2026-11-13 con aprobación del usuario: `lightgbm` de ejecución y `mlflow` en el grupo `dev`. MLflow 3 guarda las corridas en `mlflow.db`; ver `docs/decisions.md`.)*
+- [ ] Fijar `DATA_LAG_DAYS` y `GENERATION_LAG_DAYS` con `explore/08_snapshot.py summary` cuando estén los snapshots del 14 al 17 de noviembre. Si el retraso depende del día de emisión, llevar esa regla a `available_history`.
+- [ ] Ampliar `Forecaster` y `run_backtest` para que el modelo reciba también `Gene`, cortada con su retraso.
 - [ ] `features/build.py`: rezagos (respetando `horizonte + L`), medias y desviaciones móviles, hora, día de la semana, mes, festivos de Colombia (paquete `holidays`, ya instalado y usado en `daytypes.py`), víspera y día posterior a festivo. Los hallazgos de `notebooks/01_exploration.ipynb` (§7) orientan qué features valen la pena.
 - [ ] **Test anti-fuga obligatorio:** para un timestamp objetivo, ninguna feature usa datos posteriores al momento de emisión. Construirlo antes que las features.
 - [ ] `models/train.py`: LightGBM con registro en MLflow de parámetros, métricas y versión de los datos.

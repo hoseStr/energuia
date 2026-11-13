@@ -2,6 +2,16 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-13: preparación de la Fase 2
+
+- **Retraso propio para `Gene`: `GENERATION_LAG_DAYS = 3`.** Hasta ahora solo existía `DATA_LAG_DAYS` (5), que es el de la demanda, y `available_history` lo usa por defecto. Cortar `Gene` con ese valor desperdicia los dos días que la hacen útil; cortarla con un número escrito a mano en el código de features sería un valor mágico. Las tres mediciones dan D−3 (`data_notes.md` §3 a §3.3). Es provisional, igual que el de la demanda.
+- **Test que ata los retrasos a lo medido** (`tests/test_config.py`). Con los fixtures reales descargados el 2026-11-10 comprueba que ninguno de los dos retrasos configurados es menor que el observado ese día (5 y 3). Si alguien baja un retraso por debajo de la evidencia, el test falla. Subirlo sigue permitido.
+- **Tercera medición del retraso, por la mañana** (`data_notes.md` §3.3). Mismo resultado que las nocturnas. `DATA_LAG_DAYS` sigue provisional hasta los snapshots del 14 al 17 de noviembre.
+- **Las features se definirán respecto al corte de disponibilidad, no con rezagos fijos.** Si XM resulta no publicar en fines de semana y festivos, el retraso dependerá del día de emisión y un rezago fijo de 7 días dejaría de existir algunos días. Los baselines ya funcionan así (`_same_weekday_days` busca la semana más reciente publicada). Con esta regla la Fase 2 puede empezar antes del 17 de noviembre y el resultado de los snapshots solo cambia el corte.
+- **Dependencias de la Fase 2 instaladas, con aprobación del usuario.** `lightgbm` (4.7.0) va como dependencia de ejecución, porque la API la necesita para predecir. `mlflow` (3.18.0) va en el grupo `dev`: PLAN.md §3 lo limita al desarrollo, y así no entra en la imagen de Docker. Las dos resuelven con pandas 3.0.3 y se probaron en Windows: un `LGBMRegressor` entrena con un DataFrame de pandas 3 y MLflow registra parámetros, métricas y un artefacto.
+- **MLflow 3 guarda las corridas en `mlflow.db`, no en `mlruns/`.** Sin configurar nada, el almacén por defecto es SQLite (`sqlite:///mlflow.db` en el directorio de trabajo) y `mlruns/` solo recibe los artefactos. PLAN.md §3 suponía que todo iba a `mlruns/`. Se agregó `mlflow.db` a `.gitignore`. La ruta se fijará en `config.py` cuando se escriba `models/train.py`.
+- **Datos actualizados** con la ingesta del 2026-11-13: `demand` hasta el 2026-11-08 y `generation` hasta el 2026-11-10.
+
 ## 2026-11-11: Fase 1, datos y baselines
 
 ### Datos
