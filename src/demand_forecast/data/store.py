@@ -1,5 +1,6 @@
 """Parquet storage, one file per year so that a daily update only rewrites the current year."""
 
+import hashlib
 from pathlib import Path
 
 import pandas as pd
@@ -48,6 +49,15 @@ def write_table(table: pd.DataFrame, directory: Path, time_column: str) -> list[
         stale.unlink()
         changed.append(stale)
     return sorted(changed)
+
+
+def fingerprint(*series: pd.Series) -> str:
+    """Return a short hash of the timestamps and values of the given series: the data version."""
+    digest = hashlib.sha256()
+    for one in series:
+        digest.update(one.index.astype("int64").to_numpy().tobytes())
+        digest.update(one.to_numpy(dtype=float).tobytes())
+    return digest.hexdigest()[:16]
 
 
 def load_series(series: str, data_dir: Path = config.DATA_DIR) -> pd.Series:
