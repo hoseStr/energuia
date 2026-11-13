@@ -55,6 +55,38 @@ ANOMALY_MAX_DEVIATION = 0.35
 PLAUSIBLE_KWH_MIN = 5e4
 PLAUSIBLE_KWH_MAX = 2.5e7
 
+# --- Features ---
+# Published days, ending at the demand cut, that describe the recent level and profile.
+# Four whole weeks, so every window has the same mix of weekdays.
+FEATURE_WINDOW_DAYS = 28
+
+# --- Model ---
+# Years of target days, counted back from the last published day, that a fit learns from.
+TRAIN_YEARS = 10
+LGBM_ROUNDS = 200
+LGBM_PARAMS = {
+    "objective": "regression_l1",
+    "learning_rate": 0.05,
+    "num_leaves": 63,
+    "min_data_in_leaf": 50,
+    "seed": 0,
+    "deterministic": True,
+    "force_row_wise": True,
+    "verbose": -1,
+}
+# Small search, scored on the 12 months before the evaluation window (docs/decisions.md).
+# `train_years` and `rounds` are settings of the forecaster; the rest are LightGBM parameters.
+TUNING_GRID = {
+    "train_years": [3, 5, 10],
+    "num_leaves": [15, 31, 63],
+    "rounds": [200, 400, 800],
+}
+MODELS_DIR = Path(os.environ.get("DEMAND_FORECAST_MODELS_DIR", "models"))
+
+# --- Experiment tracking (development only) ---
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+MLFLOW_EXPERIMENT = "demand-forecast"
+
 # --- Evaluation (PLAN.md section 4) ---
 BACKTEST_MONTHS = 12
 MOVING_AVERAGE_WEEKS = 4
