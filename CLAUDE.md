@@ -22,10 +22,15 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 
 ## Estado y hechos clave (detalles en `docs/data_notes.md` y `docs/decisions.md`)
 
-- Fase 0 terminada el 2026-11-10 y Fase 1 el 2026-11-11. Preparación de la Fase 2 hecha el 2026-11-13 (147 tests; bloque de ajustes al inicio de la Fase 2 en `PLAN.md`). Lo siguiente es la Fase 2.
+- Fase 0 terminada el 2026-11-10, Fase 1 el 2026-11-11 y Fase 2 el 2026-11-13 (210 tests). Lo siguiente es la Fase 3. De la Fase 2 queda una casilla abierta: fijar los retrasos con los snapshots del 14 al 17 de noviembre; si cambian, hay que volver a correr `backtest` y `train` y actualizar los resultados.
+- Resultado de la Fase 2 en la ventana 2025-11-01 a 2026-10-31: LightGBM MAPE 1,96 % (meta ≤ 2,58 %). Detalle en `docs/error_analysis.md`.
+- El modelo pronostica la demanda relativa al perfil: la media hora a hora de los días del mismo tipo que el objetivo en los 28 días publicados hasta el corte. Todas las features de carga son razones, nunca kWh.
+- Cualquier decisión de modelado (features, hiperparámetros) se toma en la ventana de selección, los 12 meses anteriores a la de evaluación (`cli tune`). La ventana de evaluación no se usa para ajustar nada.
+- Comandos de la Fase 2: `python -m demand_forecast.cli tune` (27 candidatos, unos 25 minutos) y `python -m demand_forecast.cli train` (backtest, entrenamiento con todo lo publicado y registro en `models/registry.json`). `backtest --model lightgbm` desglosa el error del modelo; tarda unos 30 segundos porque siempre corre el modelo y los baselines.
+- `train` guarda en el registro el commit y si había cambios sin commitear: correrlo después de commitear el código.
 - `lightgbm` (dependencia de ejecución) y `mlflow` (grupo `dev`) ya están instalados y probados. MLflow 3 guarda las corridas en `mlflow.db` (SQLite) y solo los artefactos en `mlruns/`; ambos están en `.gitignore`. Al importarse, `mlflow` imprime un aviso para agentes que se silencia con `MLFLOW_DISABLE_AGENT_HINT=1`.
 - Comandos, desde la raíz del repo: `python -m demand_forecast.cli ingest` (re-descarga los últimos 31 días; `--full` pide toda la historia, unos 13 minutos) y `python -m demand_forecast.cli backtest --model seasonal-naive`.
-- Baselines en la ventana 2025-11-01 a 2026-10-31: ingenuo estacional MAPE 3,40 %, promedio de 4 semanas 3,03 %. Meta de la Fase 2: MAPE ≤ 2,58 %.
+- Baselines en la ventana 2025-11-01 a 2026-10-31: ingenuo estacional MAPE 3,40 %, promedio de 4 semanas 3,03 %.
 - Datos en `data/raw/<serie>/<año>.parquet` (tal como llega de XM, con días parciales) y `data/processed/<serie>/<año>.parquet` (horario, solo días completos, sin huecos). Series: `demand` y `generation`.
 - En un backtest, toda lectura del pasado pasa por `models.backtest.available_history` (corte en `D − DATA_LAG_DAYS` para la demanda y en `D − GENERATION_LAG_DAYS` para `Gene`). Las features se definen respecto a ese corte, no con rezagos fijos.
 - `uv sync` a secas desinstala el grupo `notebook`; usar `uv sync --group notebook`. `jupyter execute` en Windows necesita `PYTHONUTF8=1`.

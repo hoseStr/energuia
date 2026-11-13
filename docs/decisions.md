@@ -2,6 +2,74 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-13: Fase 2, modelo y experimentos
+
+### Features
+
+- **Cada fila se construye con un corte por serie.** `build_features` recibe, para cada día objetivo, el último día publicado de la demanda y el de `Gene`, y no lee nada posterior. `training_frame` arma las filas de entrenamiento como si cada día se hubiera pronosticado en vivo: demanda hasta 6 días antes del objetivo y `Gene` hasta 4. Un corte igual o posterior al día objetivo es un error.
+- **Ventana de 28 días publicados que termina en el corte de la demanda.** Son cuatro semanas enteras, así que todas las ventanas tienen la misma mezcla de días. De ella salen el nivel (la media de la ventana) y el perfil.
+- **El modelo pronostica la demanda relativa al perfil.** El perfil es la media, hora a hora, de los días de la ventana que tienen el mismo tipo de día que el objetivo. Para un festivo entre semana es el perfil de los domingos y festivos recientes, que es como se comporta (`notebooks/01_exploration.ipynb` §7). El pronóstico es la salida del modelo por el perfil.
+- **Ninguna feature de carga está en kWh.** Todas son razones contra el nivel o contra el perfil, porque la demanda se duplicó entre 2000 y 2025 y los árboles no extrapolan. Un test comprueba que duplicar las dos series no cambia ninguna feature.
+- **20 features.**
+  - Calendario del día objetivo (7): hora, día de la semana, tipo de día, festivo, víspera de festivo, día siguiente a un festivo y día del año.
+  - Ventana (7): forma del perfil, cuántos días del mismo tipo hay, el mismo día de la semana más reciente y la media de los cuatro (los dos baselines, relativos al perfil), cuántos de esos cuatro son de otro tipo de día, el nivel de la última semana frente al de la ventana y cuántos festivos hay en la ventana.
+  - Días más recientes (6): cuánto se desvió de su propio perfil el último día publicado de la demanda y los dos últimos de `Gene`, en el día entero y en la hora objetivo. Es la señal de que la semana viene más alta o más baja de lo normal.
+- **Lo que quedó fuera.** El mes (el día del año lo cubre), la antigüedad de cada corte (con un retraso fijo es una constante) y el clima (PLAN.md §2).
+- **Las horas marcadas como `anomaly` no se excluyen del entrenamiento.** Casi todas son del 1 de enero y del 25 de diciembre, que es justo lo que el modelo tiene que aprender. Las del apagón de 2007 quedan fuera de los años de entrenamiento.
+
+### Modelo
+
+- **Un solo LightGBM para las 24 horas, con la hora como feature.** La variante de 24 modelos no se probó: PLAN.md la deja para cuando sobre tiempo.
+- **Objetivo L1**, decidido antes de ver resultados: la métrica es el MAPE y la variable que se ajusta es una razón cercana a 1, así que el error absoluto de la razón es casi el error porcentual.
+- **En el entrenamiento los cortes salen de los retrasos configurados; en la predicción, de la historia que el modelo recibe.** El corte es el último día que haya de cada serie. En el backtest las dos cosas coinciden. En producción, si XM se atrasa, el modelo usa lo que hay en lugar de fallar.
+- **Reproducible en una misma máquina:** semilla fija, `deterministic` y `force_row_wise`. Entre sistemas operativos LightGBM no garantiza resultados idénticos.
+
+### Selección de hiperparámetros
+
+- **Ventana de selección: los 12 meses anteriores a la ventana de evaluación** (2024-11-01 a 2025-10-31), con el mismo backtest walk-forward. Las features, la variable que se ajusta y los hiperparámetros se decidieron mirando solo esa ventana. La de evaluación se corrió una vez, al final, con todo ya fijado.
+- **Búsqueda de 27 candidatos** (`python -m demand_forecast.cli tune`, `TUNING_GRID` en `config.py`): años de entrenamiento (3, 5, 10), hojas (15, 31, 63) y rondas (200, 400, 800), con tasa de aprendizaje 0,05.
+
+  | Años de entrenamiento | MAPE del mejor candidato (%) | MAPE del peor (%) |
+  |---|---|---|
+  | 3 | 2,30 | 2,35 |
+  | 5 | 2,19 | 2,24 |
+  | 10 | 2,09 | 2,12 |
+
+  En esa ventana los baselines dan 3,40 % (ingenuo estacional) y 3,43 % (promedio de 4 semanas).
+- **Lo que sí se conocía de la ventana de evaluación antes de diseñar el modelo:** los errores de los baselines de la Fase 1 (por tipo de día y por hora) y el notebook exploratorio, que usa toda la historia. De ahí salió la idea de tratar los festivos como domingos. Ningún pronóstico del modelo sobre esa ventana se vio antes de la corrida final.
+- **Lo único que mueve el resultado son los años de entrenamiento.** Dentro de cada valor, hojas y rondas cambian el MAPE como mucho 0,05 puntos.
+- **Se tomó el ganador literal: 10 años, 63 hojas y 200 rondas (2,091 %).** El segundo (10 años, 15 hojas, 800 rondas) quedó a 0,001 puntos; elegir siempre el primero evita decidir a ojo.
+- **10 años es el borde de la búsqueda** y no se probó con más. Queda como mejora posible, a medir en la ventana de selección.
+- La ventana de selección se mueve junto con la de evaluación: siempre son los 12 meses anteriores, así que nunca se solapan (hay un test).
+
+### Resultado del backtest
+
+Ventana del 2025-11-01 al 2026-10-31, corrido el 2026-11-13 con datos completos hasta el 2026-11-08.
+
+| Modelo | MAE (MWh) | MAPE (%) |
+|---|---|---|
+| Ingenuo estacional | 338,6 | 3,40 |
+| Promedio de 4 semanas | 300,5 | 3,03 |
+| LightGBM | 194,5 | 1,96 |
+
+- **La meta se cumple:** 1,96 % frente a un máximo de 2,58 %. Es un 35 % menos que el mejor baseline.
+- Dónde falla y dónde gana está en `docs/error_analysis.md`. En corto: los festivos entre semana pasan de un 11 % a un 2,5 %, y los peores días que quedan son caídas de la demanda que no se ven con datos de hace 4 a 6 días.
+
+### Registro y seguimiento
+
+- **`models/registry.json` más un archivo de texto por modelo** (`models/lightgbm-<versión>.txt`, formato de LightGBM). La versión es el momento del entrenamiento en UTC. Cada entrada guarda el hash del archivo, el commit y si había cambios sin commitear, el rango y la huella de los datos, los hiperparámetros, la lista de features y el backtest con los tres modelos.
+- **Al cargar un modelo se comprueba el hash y la lista de features.** Un archivo alterado o un modelo entrenado con otras features se rechaza con un error.
+- **`train` corre el backtest, entrena con todo lo publicado y registra el modelo como vigente.** La promoción condicionada (solo si es mejor que el vigente) es de la Fase 4.
+- **Cada modelo pesa 1,2 MB.** Cabe en el límite de 2 MB del pre-commit, pero un reentrenamiento semanal suma unos 60 MB al año al historial de git. En la Fase 4 habrá que decidir si se conservan los archivos de los modelos anteriores.
+- **MLflow registra parámetros, métricas y la versión de los datos, sin artefactos.** El modelo ya vive en `models/` con su hash, y sin artefactos MLflow no crea `mlruns/`. El almacén es `mlflow.db` (`MLFLOW_TRACKING_URI` lo cambia). `mlflow` se importa solo al registrar una corrida, así que la API de la Fase 3 no lo necesita.
+- **Huella de los datos:** hash de los timestamps y valores de las dos series procesadas. Cambia cuando XM revisa cualquier día.
+
+### Costos conocidos
+
+- **El comando `backtest` tarda unos 30 segundos** (12 entrenamientos con 10 años de datos) porque ahora corre siempre el modelo junto con los baselines, para que la comparación sea en la misma ventana.
+- **La suite de tests pasó de 6 a unos 25 segundos.** Los tests de la CLI usan un modelo de 10 rondas y ventanas de 2 meses; uno solo corre los 12 meses.
+- **El backtest usa datos ya revisados.** En producción los días recientes son preliminares (revisiones de hasta un 0,04 %).
+
 ## 2026-11-13: preparación de la Fase 2
 
 - **Retraso propio para `Gene`: `GENERATION_LAG_DAYS = 3`.** Hasta ahora solo existía `DATA_LAG_DAYS` (5), que es el de la demanda, y `available_history` lo usa por defecto. Cortar `Gene` con ese valor desperdicia los dos días que la hacen útil; cortarla con un número escrito a mano en el código de features sería un valor mágico. Las tres mediciones dan D−3 (`data_notes.md` §3 a §3.3). Es provisional, igual que el de la demanda.

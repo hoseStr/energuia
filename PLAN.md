@@ -82,8 +82,9 @@ energy-demand-forecast-co/
 │   ├── cli.py
 │   ├── config.py
 │   ├── data/                  # xm_client.py, ingest.py, schema.py
+│   ├── tracking.py            # registro de corridas en MLflow
 │   ├── features/              # build.py
-│   ├── models/                # baselines.py, train.py, backtest.py, registry.py
+│   ├── models/                # baselines.py, train.py, tune.py, backtest.py, registry.py
 │   ├── serving/               # app.py
 │   └── monitoring/            # evaluate.py, drift.py, report.py
 ├── tests/
@@ -93,7 +94,7 @@ energy-demand-forecast-co/
 │   ├── predictions/           # bitácora de pronósticos (solo se agrega)
 │   └── metrics/               # error diario
 ├── models/                    # modelo vigente + registry.json
-├── docs/                      # decisions.md, data_notes.md
+├── docs/                      # decisions.md, data_notes.md, error_analysis.md
 └── site/                      # panel generado (no editar a mano)
 ```
 
@@ -163,17 +164,19 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 > - **Decisión pendiente de la Fase 1:** si las horas marcadas como `anomaly` se excluyen del entrenamiento. En la evaluación siguen contando.
 
 - [x] Agregar `lightgbm` y `mlflow` a `pyproject.toml` y comprobar que funcionan con pandas 3 en Windows. *(Hecho el 2026-11-13 con aprobación del usuario: `lightgbm` de ejecución y `mlflow` en el grupo `dev`. MLflow 3 guarda las corridas en `mlflow.db`; ver `docs/decisions.md`.)*
-- [ ] Fijar `DATA_LAG_DAYS` y `GENERATION_LAG_DAYS` con `explore/08_snapshot.py summary` cuando estén los snapshots del 14 al 17 de noviembre. Si el retraso depende del día de emisión, llevar esa regla a `available_history`.
-- [ ] Ampliar `Forecaster` y `run_backtest` para que el modelo reciba también `Gene`, cortada con su retraso.
-- [ ] `features/build.py`: rezagos (respetando `horizonte + L`), medias y desviaciones móviles, hora, día de la semana, mes, festivos de Colombia (paquete `holidays`, ya instalado y usado en `daytypes.py`), víspera y día posterior a festivo. Los hallazgos de `notebooks/01_exploration.ipynb` (§7) orientan qué features valen la pena.
-- [ ] **Test anti-fuga obligatorio:** para un timestamp objetivo, ninguna feature usa datos posteriores al momento de emisión. Construirlo antes que las features.
-- [ ] `models/train.py`: LightGBM con registro en MLflow de parámetros, métricas y versión de los datos.
-- [ ] Estrategia multi-horizonte: empezar con un solo modelo que use la hora objetivo como feature. Comparar con 24 modelos solo si sobra tiempo.
-- [ ] Ajuste de hiperparámetros acotado (búsqueda pequeña, validación temporal).
-- [ ] Análisis de errores: ¿dónde falla? (festivos, fin de año, horas pico). Guardarlo en `docs/`.
-- [ ] `models/registry.py`: guardar modelo con metadatos (fecha, rango de datos, métricas, hash del commit) en `models/registry.json`.
+- [ ] Fijar `DATA_LAG_DAYS` y `GENERATION_LAG_DAYS` con `explore/08_snapshot.py summary` cuando estén los snapshots del 14 al 17 de noviembre. Si el retraso depende del día de emisión, llevar esa regla a `available_history`. *(Única casilla abierta de la fase: depende de datos que todavía no existen. Si los retrasos cambian, hay que volver a correr `backtest` y `train` y actualizar los resultados.)*
+- [x] Ampliar `Forecaster` y `run_backtest` para que el modelo reciba también `Gene`, cortada con su retraso. *(`History` lleva las dos series, cada una con su corte.)*
+- [x] `features/build.py`: rezagos (respetando `horizonte + L`), medias y desviaciones móviles, hora, día de la semana, mes, festivos de Colombia (paquete `holidays`, ya instalado y usado en `daytypes.py`), víspera y día posterior a festivo. Los hallazgos de `notebooks/01_exploration.ipynb` (§7) orientan qué features valen la pena. *(20 features, todas como razones contra el perfil reciente del mismo tipo de día; el mes quedó fuera. Ver `docs/decisions.md`.)*
+- [x] **Test anti-fuga obligatorio:** para un timestamp objetivo, ninguna feature usa datos posteriores al momento de emisión. Construirlo antes que las features. *(`tests/test_features.py`: destruye todo lo no publicado y comprueba que las filas no cambian.)*
+- [x] `models/train.py`: LightGBM con registro en MLflow de parámetros, métricas y versión de los datos. *(El registro en MLflow lo hace `tracking.py` desde los comandos `train` y `tune`.)*
+- [x] Estrategia multi-horizonte: empezar con un solo modelo que use la hora objetivo como feature. Comparar con 24 modelos solo si sobra tiempo. *(Un solo modelo. La comparación con 24 modelos no se hizo.)*
+- [x] Ajuste de hiperparámetros acotado (búsqueda pequeña, validación temporal). *(27 candidatos con `cli tune`, medidos en los 12 meses anteriores a la ventana de evaluación.)*
+- [x] Análisis de errores: ¿dónde falla? (festivos, fin de año, horas pico). Guardarlo en `docs/`. *(`docs/error_analysis.md`.)*
+- [x] `models/registry.py`: guardar modelo con metadatos (fecha, rango de datos, métricas, hash del commit) en `models/registry.json`. *(El modelo se registra con `cli train` después de commitear el código, para que el hash del commit quede limpio.)*
 
 **Aceptación:** el modelo cumple la meta de la sección 4 en backtesting, o existe una explicación documentada de por qué no. Hay una tabla comparativa modelo contra baselines lista para el README.
+
+> **Cumplida el 2026-11-13** (210 tests), con `DATA_LAG_DAYS` todavía provisional. Backtest del 2025-11-01 al 2026-10-31: LightGBM MAPE 1,96 % frente a 3,03 % del mejor baseline (−35 %; la meta era ≤ 2,58 %). La tabla comparativa está en `docs/error_analysis.md` §1.
 
 ### Fase 3 — Servicio y CI
 
