@@ -1,0 +1,79 @@
+{
+  "current": "20261113T215929Z",
+  "models": [
+    {
+      "version": "20261113T215929Z",
+      "file": "lightgbm-20261113T215929Z.txt",
+      "sha256": "5b856e8c9ccf9edf85c593c1ac86c70ee753f53f75d62895346c89c05b840c17",
+      "trained_at": "2026-11-13T21:59:29+00:00",
+      "commit": "4cfbbc0357407ac9f686369171d0dd71446e8652",
+      "dirty": false,
+      "data": {
+        "first_target_day": "2016-11-09",
+        "last_target_day": "2026-11-08",
+        "rows": 87648,
+        "demand_last_day": "2026-11-08",
+        "generation_last_day": "2026-11-10",
+        "fingerprint": "6b3ea3089d1e0d21"
+      },
+      "model": {
+        "params": {
+          "objective": "regression_l1",
+          "learning_rate": 0.05,
+          "num_leaves": 63,
+          "min_data_in_leaf": 50,
+          "seed": 0,
+          "deterministic": true,
+          "force_row_wise": true,
+          "verbose": -1
+        },
+        "rounds": 200,
+        "train_years": 10,
+        "horizon_days": 1,
+        "lag_days": 5,
+        "generation_lag_days": 3,
+        "features": [
+          "hour",
+          "weekday",
+          "day_type",
+          "is_holiday",
+          "holiday_eve",
+          "after_holiday",
+          "day_of_year",
+          "profile_shape",
+          "same_type_days",
+          "same_weekday_last",
+          "same_weekday_mean",
+          "same_weekday_mismatch",
+          "week_level",
+          "window_holidays",
+          "demand_last_day_dev",
+          "demand_last_hour_dev",
+          "generation_last_day_dev",
+          "generation_last_hour_dev",
+          "generation_prev_day_dev",
+          "generation_prev_hour_dev"
+        ]
+      },
+      "backtest": {
+        "start": "2025-11-01",
+        "end": "2026-10-31",
+        "folds": 12,
+        "metrics": {
+          "seasonal-naive": {
+            "mae": 338628.444,
+            "mape": 3.4025
+          },
+          "moving-average": {
+            "mae": 300503.5935,
+            "mape": 3.034
+          },
+          "lightgbm": {
+            "mae": 194519.7729,
+            "mape": 1.9585
+          }
+        }
+      }
+    }
+  ]
+}
