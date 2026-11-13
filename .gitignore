@@ -7,6 +7,7 @@ __pycache__/
 
 # Experiments
 mlruns/
+mlflow.db
 .ipynb_checkpoints/
 
 # Secrets

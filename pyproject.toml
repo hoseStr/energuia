@@ -4,6 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "holidays>=0.108",
+    "lightgbm>=4.7.0",
     "pandas>=3.0.3",
     "pandera>=0.36.0",
     "pyarrow>=26.0.1",
@@ -17,6 +18,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "mlflow>=3.18.0",
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "ruff>=0.17.4",
