@@ -19,8 +19,10 @@ class SeriesSpec:
 TIMEZONE = "America/Bogota"
 HORIZON_DAYS = 1
 # A forecast issued on day D only sees demand up to D - DATA_LAG_DAYS.
-# Provisional: measured on 2026-11-10 and 2026-11-11 (docs/data_notes.md section 3).
+# Provisional: measured on 2026-11-10, 2026-11-11 and 2026-11-13 (docs/data_notes.md section 3).
 DATA_LAG_DAYS = 5
+# Generation is published two days earlier than demand; same measurements, also provisional.
+GENERATION_LAG_DAYS = 3
 
 # --- Series ---
 DEMAND = SeriesSpec(name="demand", metric_id="DemaCome", entity="Sistema")
