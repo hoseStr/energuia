@@ -11,14 +11,22 @@ import pandas as pd
 from demand_forecast import config
 
 
+@dataclass(frozen=True)
+class History:
+    """What a forecast can see when it is issued: each series cut at its own publication lag."""
+
+    demand: pd.Series
+    generation: pd.Series | None = None
+
+
 class Forecaster(Protocol):
     """A model that forecasts the 24 hours of a day from the history available at issue time."""
 
     name: str
 
-    def fit(self, history: pd.Series) -> None: ...
+    def fit(self, history: History) -> None: ...
 
-    def predict(self, history: pd.Series, target_day: pd.Timestamp) -> pd.Series: ...
+    def predict(self, history: History, target_day: pd.Timestamp) -> pd.Series: ...
 
 
 @dataclass(frozen=True)
@@ -39,6 +47,23 @@ def available_history(
     """
     first_unpublished_hour = issue_day - pd.Timedelta(days=lag_days - 1)
     return series.iloc[: series.index.searchsorted(first_unpublished_hour, side="left")]
+
+
+def history_at(
+    demand: pd.Series,
+    generation: pd.Series | None,
+    issue_day: pd.Timestamp,
+    *,
+    lag_days: int = config.DATA_LAG_DAYS,
+    generation_lag_days: int = config.GENERATION_LAG_DAYS,
+) -> History:
+    """Return what a forecast issued on `issue_day` can see of every series."""
+    return History(
+        demand=available_history(demand, issue_day, lag_days),
+        generation=None
+        if generation is None
+        else available_history(generation, issue_day, generation_lag_days),
+    )
 
 
 def evaluation_window(
@@ -77,17 +102,24 @@ def run_backtest(
     forecaster: Forecaster,
     folds: list[Fold],
     *,
+    generation: pd.Series | None = None,
     horizon_days: int = config.HORIZON_DAYS,
     lag_days: int = config.DATA_LAG_DAYS,
+    generation_lag_days: int = config.GENERATION_LAG_DAYS,
 ) -> pd.DataFrame:
-    """Forecast every target day of every fold; return `actual` and `predicted` by timestamp."""
+    """Forecast every target day of every fold; return `actual` and `predicted` by timestamp.
+
+    `series` is the demand, which is also the target. `generation` is only shown to the
+    forecaster, cut at its own publication lag.
+    """
+    lags = {"lag_days": lag_days, "generation_lag_days": generation_lag_days}
     predictions = []
     for fold in folds:
         first_issue_day = fold.target_days[0] - pd.Timedelta(days=horizon_days)
-        forecaster.fit(available_history(series, first_issue_day, lag_days))
+        forecaster.fit(history_at(series, generation, first_issue_day, **lags))
         for target_day in fold.target_days:
             issue_day = target_day - pd.Timedelta(days=horizon_days)
-            history = available_history(series, issue_day, lag_days)
+            history = history_at(series, generation, issue_day, **lags)
             predictions.append(forecaster.predict(history, target_day))
     predicted = pd.concat(predictions).rename("predicted")
     missing = predicted.index.difference(series.index)

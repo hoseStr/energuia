@@ -5,6 +5,7 @@ import math
 import pandas as pd
 
 from demand_forecast import config
+from demand_forecast.models.backtest import History
 
 HOURS_PER_DAY = 24
 
@@ -36,13 +37,13 @@ class SeasonalNaive:
 
     name = "seasonal-naive"
 
-    def fit(self, history: pd.Series) -> None:
+    def fit(self, history: History) -> None:
         """Nothing to learn."""
 
-    def predict(self, history: pd.Series, target_day: pd.Timestamp) -> pd.Series:
+    def predict(self, history: History, target_day: pd.Timestamp) -> pd.Series:
         """Return the 24 hourly values forecast for `target_day`."""
-        (day,) = _same_weekday_days(history, target_day, 1)
-        return pd.Series(_day_values(history, day), index=_target_hours(target_day))
+        (day,) = _same_weekday_days(history.demand, target_day, 1)
+        return pd.Series(_day_values(history.demand, day), index=_target_hours(target_day))
 
 
 class MovingAverage:
@@ -53,13 +54,13 @@ class MovingAverage:
     def __init__(self, weeks: int = config.MOVING_AVERAGE_WEEKS) -> None:
         self._weeks = weeks
 
-    def fit(self, history: pd.Series) -> None:
+    def fit(self, history: History) -> None:
         """Nothing to learn."""
 
-    def predict(self, history: pd.Series, target_day: pd.Timestamp) -> pd.Series:
+    def predict(self, history: History, target_day: pd.Timestamp) -> pd.Series:
         """Return the 24 hourly values forecast for `target_day`."""
-        days = _same_weekday_days(history, target_day, self._weeks)
-        values = pd.DataFrame([_day_values(history, day) for day in days])
+        days = _same_weekday_days(history.demand, target_day, self._weeks)
+        values = pd.DataFrame([_day_values(history.demand, day) for day in days])
         return pd.Series(values.mean().to_numpy(), index=_target_hours(target_day))
 
 

@@ -4,6 +4,7 @@ import pytest
 from demand_forecast import config
 from demand_forecast.models.backtest import (
     Fold,
+    History,
     available_history,
     evaluation_window,
     make_folds,
@@ -27,12 +28,18 @@ class Spy:
     def __init__(self) -> None:
         self.fits: list[pd.Timestamp] = []
         self.predictions: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+        self.generation_fits: list[pd.Timestamp] = []
+        self.generation_predictions: list[tuple[pd.Timestamp, pd.Timestamp]] = []
 
-    def fit(self, history: pd.Series) -> None:
-        self.fits.append(history.index.max())
+    def fit(self, history: History) -> None:
+        self.fits.append(history.demand.index.max())
+        if history.generation is not None:
+            self.generation_fits.append(history.generation.index.max())
 
-    def predict(self, history: pd.Series, target_day: pd.Timestamp) -> pd.Series:
-        self.predictions.append((target_day, history.index.max()))
+    def predict(self, history: History, target_day: pd.Timestamp) -> pd.Series:
+        self.predictions.append((target_day, history.demand.index.max()))
+        if history.generation is not None:
+            self.generation_predictions.append((target_day, history.generation.index.max()))
         return pd.Series(1.0, index=pd.date_range(target_day, periods=24, freq="h"))
 
 
@@ -116,6 +123,28 @@ class TestRunBacktestDoesNotLeak:
         for fold, last_fitted in zip(folds, spy.fits, strict=True):
             assert last_fitted < fold.target_days[0]
 
+    @pytest.mark.parametrize("generation_lag_days", [1, 3, 5])
+    def test_generation_is_cut_at_its_own_lag(self, make_series, generation_lag_days):
+        series = make_series("2025-10-01", 150)
+        folds = make_folds(day("2025-12-01"), day("2026-01-31"))
+        spy = Spy()
+
+        run_backtest(
+            series, spy, folds, generation=series * 1.01, generation_lag_days=generation_lag_days
+        )
+
+        last_hour = pd.Timedelta(hours=23) - generation_lag_days * DAY
+        assert len(spy.generation_predictions) == 62
+        for target_day, last_seen in spy.generation_predictions:
+            assert last_seen == target_day - DAY + last_hour
+        first_issue_days = [fold.target_days[0] - DAY for fold in folds]
+        assert spy.generation_fits == [issue_day + last_hour for issue_day in first_issue_days]
+
+    def test_without_generation_the_forecaster_gets_none(self, make_series):
+        spy, _, _ = self.run(make_series)
+        assert spy.generation_fits == []
+        assert spy.generation_predictions == []
+
     @pytest.mark.parametrize("model", BASELINES.values(), ids=BASELINES.keys())
     def test_forecasts_do_not_change_when_unpublished_data_changes(self, make_series, model):
         series = make_series("2025-10-01", 150)
@@ -154,7 +183,7 @@ class TestRunBacktestResults:
 
 class TestBaselines:
     def predict(self, model, series: pd.Series, target: str, lag_days: int = 5) -> pd.Series:
-        history = available_history(series, day(target) - DAY, lag_days)
+        history = History(demand=available_history(series, day(target) - DAY, lag_days))
         return model.predict(history, day(target))
 
     def values(self, series: pd.Series, target: str) -> list[float]:
