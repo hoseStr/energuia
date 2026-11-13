@@ -61,6 +61,21 @@ def test_by_day_type_groups_sundays_with_holidays(results):
     assert table.loc[SUNDAY_OR_HOLIDAY, "mape"] == pytest.approx(40.0)
 
 
+def test_by_month_labels_each_calendar_month():
+    index = pd.date_range("2026-10-31", periods=48, freq="h", tz=BOGOTA)
+    predicted = [110.0] * 24 + [130.0] * 24
+    table = metrics.by_month(pd.DataFrame({"actual": 100.0, "predicted": predicted}, index=index))
+    assert list(table.index) == ["2026-10", "2026-11"]
+    assert list(table["mape"]) == pytest.approx([10.0, 30.0])
+
+
+def test_by_day_gives_the_error_and_the_type_of_each_day(results):
+    table = metrics.by_day(results)
+    assert list(table.index) == list(pd.date_range("2026-11-13", periods=4, freq="D", tz=BOGOTA))
+    assert list(table["mape"]) == pytest.approx([10.0, 20.0, 30.0, 50.0])
+    assert list(table["day_type"]) == [WORKDAY, SATURDAY, SUNDAY_OR_HOLIDAY, SUNDAY_OR_HOLIDAY]
+
+
 def test_by_hour_uses_the_local_hour(results):
     results.loc[results.index.hour == 19, "predicted"] = 100.0
     table = metrics.by_hour(results)

@@ -23,6 +23,18 @@ def by_hour(results: pd.DataFrame) -> pd.DataFrame:
     return _errors(results).groupby(results.index.hour).mean().rename_axis("hour")
 
 
+def by_month(results: pd.DataFrame) -> pd.DataFrame:
+    """Return MAE and MAPE for each calendar month, labelled `YYYY-MM`."""
+    return _errors(results).groupby(results.index.strftime("%Y-%m")).mean().rename_axis("month")
+
+
+def by_day(results: pd.DataFrame) -> pd.DataFrame:
+    """Return MAE, MAPE and the day type of each day."""
+    table = _errors(results).groupby(results.index.normalize()).mean().rename_axis("day")
+    table["day_type"] = day_types(table.index).to_numpy()
+    return table
+
+
 def by_day_type(results: pd.DataFrame) -> pd.DataFrame:
     """Return MAE and MAPE for workdays, Saturdays, and Sundays or holidays."""
     days = results.index.normalize()
