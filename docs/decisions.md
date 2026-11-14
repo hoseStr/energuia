@@ -32,8 +32,16 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 
 - **`ci.yml` corre en cada push y en cada PR**, con dos trabajos: uno con `ruff check`, `ruff format --check` y `pytest` sobre el entorno del lock, y otro que construye la imagen, arranca el contenedor y consulta las tres rutas.
 - **Versiones exactas de las acciones** (`actions/checkout@v7.0.1` y `astral-sh/setup-uv@v10.3.3`) y de `uv` (0.13.7, la misma de la máquina local y de la imagen). La imagen se construye con `docker build` a secas, sin acciones de Docker.
-- **Probado en Linux antes del primer push:** `ruff` y los 233 tests pasan en un contenedor Debian trixie con el entorno del lock. Falta ver el workflow en verde en GitHub.
+- **Probado en Linux antes del primer push:** `ruff` y los 233 tests pasan en un contenedor Debian trixie con el entorno del lock. El primer push (commit `d12a556`, 2026-11-14) dejó el workflow en verde en GitHub.
 - **El contenedor usa 173 MB de memoria** con el servicio arrancado y las tres rutas consultadas.
+
+### Despliegue
+
+- **Plataforma: Render, capa gratuita.** La eligió el usuario el 2026-11-14. Hugging Face Spaces se descartó porque hay reportes de que Docker pasó a ser de pago en cuentas gratuitas nuevas, y Cloud Run porque exige cuenta de facturación y más configuración.
+- **Condiciones leídas ese día en la documentación de Render:** 512 MB de RAM y 0,1 CPU, 750 horas de instancia al mes por workspace, y el servicio se duerme tras 15 minutos sin tráfico y tarda cerca de un minuto en despertar. El contenedor usa 173 MB, así que cabe. La documentación no dice si pide tarjeta ni cuántos minutos de construcción incluye (**por verificar** al crear la cuenta).
+- **`render.yaml` en la raíz** describe el servicio: imagen construida desde el `Dockerfile`, región `virginia` (la más cercana a Colombia; no se puede cambiar después), comprobación de salud en `/health` y despliegue solo cuando CI pasa en el commit (`autoDeployTrigger: checksPass`).
+- **El puerto lo pone Render** en la variable `PORT` (10000 por defecto), que el comando `serve` ya lee.
+- **Consecuencia del sueño de 15 minutos:** la primera petición después de un rato sin tráfico tarda cerca de un minuto. El panel de GitHub Pages de la Fase 4 no depende de la API, así que no le afecta.
 
 ### Dependencias
 
