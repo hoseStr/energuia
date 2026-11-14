@@ -8,6 +8,7 @@ from typing import Annotated
 
 import pandas as pd
 import typer
+import uvicorn
 
 from demand_forecast import config, tracking
 from demand_forecast.data import store
@@ -22,9 +23,11 @@ from demand_forecast.models.backtest import (
     run_backtest,
 )
 from demand_forecast.models.baselines import BASELINES
-from demand_forecast.models.registry import RegistryError, git_commit, register_model
+from demand_forecast.models.registry import RegistryError, git_commit, load_model, register_model
 from demand_forecast.models.train import LightGBMForecaster
 from demand_forecast.models.tune import selection_window, tune
+from demand_forecast.serving.app import create_app
+from demand_forecast.serving.forecast import bogota_now, issue_forecast
 
 WORST_DAYS = 10
 
@@ -182,6 +185,47 @@ def train_command() -> None:
         f"{entry['data']['first_target_day']}..{entry['data']['last_target_day']} "
         f"({entry['data']['rows']} hours), data version {data_version}."
     )
+
+
+@app.command("forecast")
+def forecast_command() -> None:
+    """Forecast tomorrow with the current model and everything published so far."""
+    try:
+        demand, generation = _load_series()
+        model, entry = load_model(config.MODELS_DIR)
+        forecast = issue_forecast(
+            model, entry["version"], History(demand=demand, generation=generation), now=bogota_now()
+        )
+    except (FileNotFoundError, ValueError, RegistryError) as error:
+        typer.echo(f"error: {error}", err=True)
+        raise typer.Exit(code=1) from error
+
+    typer.echo(
+        f"Forecast of {config.DEMAND.metric_id} for {forecast.target_day.date()}, issued "
+        f"{forecast.issued_at:%Y-%m-%d %H:%M} with model {forecast.model_version}: demand "
+        f"published up to {forecast.demand_last_day.date()} and generation up to "
+        f"{forecast.generation_last_day.date()}.\n"
+    )
+    table = pd.DataFrame({"MWh": (forecast.values / 1e3).round(1)})
+    table.index = forecast.values.index.strftime("%H:%M")
+    typer.echo(table.to_string())
+    typer.echo(f"\nTotal: {forecast.values.sum() / 1e6:.1f} GWh")
+
+
+@app.command("serve")
+def serve_command(
+    host: Annotated[str, typer.Option("--host", help="Interface to listen on.")] = config.API_HOST,
+    port: Annotated[
+        int, typer.Option("--port", envvar="PORT", help="Port to listen on.")
+    ] = config.API_PORT,
+) -> None:
+    """Serve the forecast over HTTP with the current model and the stored data."""
+    try:
+        api = create_app(config.DATA_DIR, config.MODELS_DIR)
+    except (FileNotFoundError, RegistryError) as error:
+        typer.echo(f"error: {error}", err=True)
+        raise typer.Exit(code=1) from error
+    uvicorn.run(api, host=host, port=port)
 
 
 def _load_series() -> tuple[pd.Series, pd.Series]:

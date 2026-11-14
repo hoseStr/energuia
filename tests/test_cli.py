@@ -5,9 +5,11 @@ import pytest
 from typer.testing import CliRunner
 
 from demand_forecast import cli, config
+from demand_forecast.data import store
 from demand_forecast.data.ingest import ingest
 from demand_forecast.data.xm_client import XMUnavailableError
-from demand_forecast.models.registry import load_model, read_registry
+from demand_forecast.models.backtest import History
+from demand_forecast.models.registry import load_model, read_registry, register_model
 from demand_forecast.models.train import LightGBMForecaster
 
 runner = CliRunner()
@@ -202,3 +204,94 @@ def test_backtest_with_too_little_history_fails_cleanly(data_dir, make_wide, mon
     result = runner.invoke(cli.app, ["backtest"])
     assert result.exit_code == 1
     assert "error: no published history to forecast 2025-10-01" in result.output
+
+
+@pytest.fixture
+def registered_model(stored_history) -> str:
+    """A small model fitted on the stored history and registered as the current one."""
+    model = LightGBMForecaster(rounds=10, train_years=1)
+    model.fit(
+        History(
+            demand=store.load_series(config.DEMAND.name, config.DATA_DIR),
+            generation=store.load_series(config.GENERATION.name, config.DATA_DIR),
+        )
+    )
+    entry = register_model(
+        model,
+        trained_at=datetime(2026, 11, 11, 16, 30, 5, tzinfo=UTC),
+        data={"fingerprint": "0123456789abcdef"},
+        backtest={"start": "2025-11-01", "end": "2026-10-31", "folds": 12, "metrics": {}},
+        commit={"commit": "abc123", "dirty": False},
+        models_dir=config.MODELS_DIR,
+    )
+    return entry["version"]
+
+
+@pytest.fixture
+def wednesday_morning(monkeypatch):
+    now = pd.Timestamp("2026-11-12 08:00", tz=config.TIMEZONE)
+    monkeypatch.setattr(cli, "bogota_now", lambda: now)
+
+
+def test_forecast_prints_the_24_hours_of_tomorrow(registered_model, wednesday_morning):
+    result = runner.invoke(cli.app, ["forecast"])
+
+    assert result.exit_code == 0, result.output
+    assert "Forecast of DemaCome for 2026-11-13" in result.output
+    assert "issued 2026-11-12 08:00" in result.output
+    assert f"model {registered_model}" in result.output
+    assert "demand published up to 2026-11-06" in result.output
+    assert "generation up to 2026-11-06" in result.output
+    hours = [line for line in result.output.splitlines() if line[:5].endswith(":00")]
+    assert [line[:5] for line in hours] == [f"{hour:02d}:00" for hour in range(24)]
+    assert "GWh" in result.output
+
+
+def test_forecast_without_a_model_says_how_to_get_it(stored_history, wednesday_morning):
+    result = runner.invoke(cli.app, ["forecast"])
+    assert result.exit_code == 1
+    assert "run the `train` command first" in result.output
+
+
+def test_forecast_without_data_says_how_to_get_it(data_dir, wednesday_morning):
+    result = runner.invoke(cli.app, ["forecast"])
+    assert result.exit_code == 1
+    assert "error:" in result.output
+
+
+@pytest.fixture
+def served(monkeypatch) -> list[dict]:
+    """Capture what `serve` hands to uvicorn instead of opening a port."""
+    calls = []
+    monkeypatch.setattr(
+        cli.uvicorn, "run", lambda app, **kwargs: calls.append({"app": app} | kwargs)
+    )
+    return calls
+
+
+def test_serve_starts_the_api_on_the_configured_address(registered_model, served, monkeypatch):
+    monkeypatch.delenv("PORT", raising=False)
+
+    result = runner.invoke(cli.app, ["serve"])
+
+    assert result.exit_code == 0, result.output
+    (call,) = served
+    assert call["host"] == config.API_HOST
+    assert call["port"] == config.API_PORT
+    assert {route.path for route in call["app"].routes} >= {"/health", "/forecast", "/metrics"}
+
+
+def test_serve_takes_the_port_from_the_environment(registered_model, served, monkeypatch):
+    monkeypatch.setenv("PORT", "7860")
+
+    result = runner.invoke(cli.app, ["serve", "--host", "0.0.0.0"])
+
+    assert result.exit_code == 0, result.output
+    assert (served[0]["host"], served[0]["port"]) == ("0.0.0.0", 7860)
+
+
+def test_serve_without_a_model_does_not_start(stored_history, served):
+    result = runner.invoke(cli.app, ["serve"])
+    assert result.exit_code == 1
+    assert "run the `train` command first" in result.output
+    assert served == []

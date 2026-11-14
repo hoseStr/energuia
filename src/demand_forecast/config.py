@@ -87,6 +87,11 @@ MODELS_DIR = Path(os.environ.get("DEMAND_FORECAST_MODELS_DIR", "models"))
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
 MLFLOW_EXPERIMENT = "demand-forecast"
 
+# --- API ---
+# Local default; a container must listen on every interface (`serve --host 0.0.0.0`).
+API_HOST = "127.0.0.1"
+API_PORT = 8000
+
 # --- Evaluation (PLAN.md section 4) ---
 BACKTEST_MONTHS = 12
 MOVING_AVERAGE_WEEKS = 4
