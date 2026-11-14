@@ -1,0 +1,11 @@
+# Allowlist: the image only needs the package, its lock file, the processed data and the models.
+*
+!pyproject.toml
+!uv.lock
+!src/
+!data/
+data/*
+!data/processed/
+!models/
+**/__pycache__/
+**/*.py[cod]
