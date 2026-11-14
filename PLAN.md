@@ -190,9 +190,11 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 - [x] Esquemas Pydantic y tests de la API con `TestClient`. *(`serving/schemas.py`, `tests/test_app.py` y `tests/test_forecast.py`.)*
 - [x] `Dockerfile` multi-etapa, imagen pequeña, usuario no root. *(218 MB comprimida y 930 MB desplegada, casi todo `pyarrow`, `scipy`, `pandas` y `numpy`. Probada en local con `docker run`: las tres rutas responden.)*
 - [x] `ci.yml`: ruff, pytest y construcción de la imagen en cada push y PR. *(Escrito el 2026-11-14. Los mismos pasos pasaron en un contenedor Linux local, con 233 tests. En verde en GitHub desde el primer push, commit `d12a556`.)*
-- [ ] Despliegue en capa gratuita. **Preguntar al usuario** antes de elegir (candidatos: Hugging Face Spaces con Docker, Render, Cloud Run) y verificar las condiciones vigentes de cada una. *(El usuario eligió Render el 2026-11-14 y `render.yaml` ya describe el servicio. Falta que el usuario cree la cuenta y el servicio, y comprobar que la URL pública responde en `/forecast`.)*
+- [x] Despliegue en capa gratuita. **Preguntar al usuario** antes de elegir (candidatos: Hugging Face Spaces con Docker, Render, Cloud Run) y verificar las condiciones vigentes de cada una. *(Render, elegido por el usuario el 2026-11-14 y descrito en `render.yaml`. URL: https://energuia-api.onrender.com)*
 
 **Aceptación:** CI en verde, la imagen corre localmente con `docker run` y hay una URL pública que responde en `/forecast`.
+
+> **Cumplida el 2026-11-14** (234 tests). CI en verde desde el commit `d12a556`, la imagen responde en local con `docker run` y https://energuia-api.onrender.com/forecast devuelve el pronóstico del día siguiente, idéntico al calculado en local. Queda para la Fase 4: que la API sirva la bitácora, el error real en `/metrics`, el límite de antigüedad de los datos y cómo se actualiza a diario el servicio desplegado.
 
 ### Fase 4 — Automatización y monitoreo
 

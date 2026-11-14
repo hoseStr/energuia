@@ -41,6 +41,8 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 - **Condiciones leídas ese día en la documentación de Render:** 512 MB de RAM y 0,1 CPU, 750 horas de instancia al mes por workspace, y el servicio se duerme tras 15 minutos sin tráfico y tarda cerca de un minuto en despertar. El contenedor usa 173 MB, así que cabe. La documentación no dice si pide tarjeta ni cuántos minutos de construcción incluye (**por verificar** al crear la cuenta).
 - **`render.yaml` en la raíz** describe el servicio: imagen construida desde el `Dockerfile`, región `virginia` (la más cercana a Colombia; no se puede cambiar después), comprobación de salud en `/health` y despliegue solo cuando CI pasa en el commit (`autoDeployTrigger: checksPass`).
 - **El puerto lo pone Render** en la variable `PORT` (10000 por defecto), que el comando `serve` ya lee.
+- **Desplegado el 2026-11-14 en https://energuia-api.onrender.com.** Ese día las tres rutas respondieron 200 y `/forecast` devolvió para el 2026-11-15 los mismos valores que el comando `forecast` en local.
+- **La raíz redirige a `/docs`.** Sin eso, quien abre la dirección a secas ve un 404.
 - **Consecuencia del sueño de 15 minutos:** la primera petición después de un rato sin tráfico tarda cerca de un minuto. El panel de GitHub Pages de la Fase 4 no depende de la API, así que no le afecta.
 
 ### Dependencias
