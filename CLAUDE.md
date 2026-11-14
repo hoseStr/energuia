@@ -23,6 +23,10 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 ## Estado y hechos clave (detalles en `docs/data_notes.md` y `docs/decisions.md`)
 
 - Fase 0 terminada el 2026-11-10, Fase 1 el 2026-11-11 y Fase 2 el 2026-11-13 (210 tests). Lo siguiente es la Fase 3. De la Fase 2 queda una casilla abierta: fijar los retrasos con los snapshots del 14 al 17 de noviembre; si cambian, hay que volver a correr `backtest` y `train` y actualizar los resultados.
+- Fase 3 en curso desde el 2026-11-14. Hechos: `serving/forecast.py` (`issue_forecast`), la API (`serving/app.py`, `serving/schemas.py`), los comandos `forecast` y `serve`, el `Dockerfile` y `.github/workflows/ci.yml`. Falta elegir la plataforma de despliegue (preguntar al usuario) y ver CI en verde en GitHub.
+- Comandos de la Fase 3: `python -m demand_forecast.cli forecast` (pronóstico de mañana con el modelo vigente) y `python -m demand_forecast.cli serve` (API en `127.0.0.1:8000`; rutas `/health`, `/forecast`, `/metrics`, `/docs`). Imagen: `docker build -t demand-forecast .` y `docker run -p 8000:8000 demand-forecast`; necesita Docker Desktop abierto.
+- La API calcula el pronóstico en cada petición con los datos y el modelo que van dentro de la imagen; `/metrics` devuelve el backtest del registro hasta que la Fase 4 mida el error real. No hay límite de antigüedad de los datos (pendiente para la Fase 4).
+- Starlette 1.10 avisa que `httpx` en `TestClient` está obsoleto y pide `httpx2`; pendiente de decidir con el usuario.
 - Resultado de la Fase 2 en la ventana 2025-11-01 a 2026-10-31: LightGBM MAPE 1,96 % (meta ≤ 2,58 %). Detalle en `docs/error_analysis.md`.
 - El modelo pronostica la demanda relativa al perfil: la media hora a hora de los días del mismo tipo que el objetivo en los 28 días publicados hasta el corte. Todas las features de carga son razones, nunca kWh.
 - Cualquier decisión de modelado (features, hiperparámetros) se toma en la ventana de selección, los 12 meses anteriores a la de evaluación (`cli tune`). La ventana de evaluación no se usa para ajustar nada.

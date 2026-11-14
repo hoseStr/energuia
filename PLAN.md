@@ -180,10 +180,16 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 ### Fase 3 — Servicio y CI
 
-- [ ] `serving/app.py`: `GET /health`, `GET /forecast` (pronóstico vigente con versión del modelo y momento de emisión), `GET /metrics` (error reciente).
-- [ ] Esquemas Pydantic y tests de la API con `TestClient`.
-- [ ] `Dockerfile` multi-etapa, imagen pequeña, usuario no root.
-- [ ] `ci.yml`: ruff, pytest y construcción de la imagen en cada push y PR.
+> **Ajustes al empezar la fase, el 2026-11-14** (ver `docs/decisions.md`):
+>
+> - **La bitácora de pronósticos y el error diario son de la Fase 4**, así que en esta fase `/forecast` calcula el pronóstico en cada petición y `/metrics` devuelve el backtest del modelo vigente.
+> - **La función que emite el pronóstico (`serving/forecast.py::issue_forecast`) se escribió aquí** y la reutiliza el job diario de la Fase 4.
+> - **Dependencias aprobadas por el usuario:** `fastapi` y `uvicorn` de ejecución y `httpx` en el grupo `dev`.
+
+- [x] `serving/app.py`: `GET /health`, `GET /forecast` (pronóstico vigente con versión del modelo y momento de emisión), `GET /metrics` (error reciente). *(`/metrics` devuelve el backtest del registro hasta que la Fase 4 mida el error real. Se agregaron los comandos `forecast` y `serve`.)*
+- [x] Esquemas Pydantic y tests de la API con `TestClient`. *(`serving/schemas.py`, `tests/test_app.py` y `tests/test_forecast.py`.)*
+- [x] `Dockerfile` multi-etapa, imagen pequeña, usuario no root. *(218 MB comprimida y 930 MB desplegada, casi todo `pyarrow`, `scipy`, `pandas` y `numpy`. Probada en local con `docker run`: las tres rutas responden.)*
+- [x] `ci.yml`: ruff, pytest y construcción de la imagen en cada push y PR. *(Escrito el 2026-11-14. Los mismos pasos pasaron en un contenedor Linux local, con 233 tests. Falta verlo en verde en GitHub después del primer push.)*
 - [ ] Despliegue en capa gratuita. **Preguntar al usuario** antes de elegir (candidatos: Hugging Face Spaces con Docker, Render, Cloud Run) y verificar las condiciones vigentes de cada una.
 
 **Aceptación:** CI en verde, la imagen corre localmente con `docker run` y hay una URL pública que responde en `/forecast`.

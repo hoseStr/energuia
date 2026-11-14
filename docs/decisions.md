@@ -2,6 +2,44 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-14: Fase 3, servicio y CI
+
+### Emisión del pronóstico
+
+- **Una sola función emite el pronóstico: `serving/forecast.py::issue_forecast`.** La usan la API y el comando `forecast`, y la usará el job diario de la Fase 4. El día de emisión es la fecha de Bogotá del reloj, venga en la zona horaria que venga (el servidor y CI corren en UTC), y el día objetivo es el siguiente.
+- **En vivo la historia se usa entera, sin `available_history`.** Las tablas procesadas solo contienen días ya publicados, así que el corte es lo que hay. La función rechaza una historia que contenga el día de emisión o uno posterior: en vivo es imposible, y si pasa es que el reloj está mal o se está repitiendo un día pasado sin cortar los datos. Para repetir un día pasado hay que cortar antes con `history_at`.
+- **El pronóstico dice hasta qué día vio cada serie** (`demand_last_day` y `generation_last_day`), pero **no hay un límite de antigüedad**: con datos de hace un mes el servicio sigue respondiendo. Fijar ese límite exige medir cuánto empeora el error con cortes más viejos, en la ventana de selección. Queda para la Fase 4, junto con la regla de que el job diario falle si no hay datos nuevos.
+
+### API
+
+- **Tres rutas:** `GET /health`, `GET /forecast` y `GET /metrics`, más la documentación automática en `/docs`. Los esquemas están en `serving/schemas.py`.
+- **`/forecast` calcula el pronóstico en cada petición** con el modelo vigente y los datos que tiene el servicio. `issued_at` es el momento de ese cálculo. No hay caché: son 24 filas y el modelo es determinista, así que dos peticiones del mismo día devuelven los mismos valores. Cuando exista la bitácora de la Fase 4, la API debe servir lo que diga la bitácora, para que nunca haya dos versiones del pronóstico de un día.
+- **`/metrics` devuelve por ahora el backtest del modelo vigente**, tal como está en `models/registry.json`, con los dos baselines. PLAN.md pide el "error reciente", que no existe hasta que la Fase 4 compare pronósticos emitidos con datos reales.
+- **Todo en kWh**, la unidad de XM: `demand_kwh` y `mae_kwh`. Las horas llevan el desfase de Bogotá (`-05:00`).
+- **El servicio no arranca sin modelo registrado o sin datos procesados.** Si el pronóstico no se puede calcular con los datos que hay, `/forecast` responde 503 con el motivo.
+- **Comando `serve`** (`python -m demand_forecast.cli serve`) en lugar de llamar a `uvicorn` a mano. Escucha en `127.0.0.1:8000`; el contenedor usa `--host 0.0.0.0`, y el puerto se puede fijar con la variable `PORT`, que es como lo pasan las plataformas de despliegue.
+
+### Imagen de Docker
+
+- **Dos etapas.** La primera instala con `uv` las dependencias de ejecución del lock (sin el grupo `dev`: ni `mlflow`, ni `pytest`, ni `ruff`). La segunda es `python:3.11-slim-trixie` con ese entorno, `data/processed/` y `models/`. Corre con un usuario sin privilegios (uid 1000).
+- **Debian trixie y no bookworm:** la imagen de `uv` 0.13.7 ya no se publica para bookworm.
+- **Los datos y el modelo van dentro de la imagen**, así que el servicio desplegado está tan al día como su última construcción. Cómo se actualiza a diario es una decisión de la Fase 4 y depende de la plataforma.
+- **Tamaño: 218 MB comprimida y 930 MB desplegada.** Casi todo es el entorno (535 MB): `pyarrow` 170 MB, `scipy` 143 MB (lo exige `lightgbm`), `pandas` 76 MB y `numpy` 73 MB. Los datos son 8 MB y el modelo 1 MB. Bajar de ahí exige dejar Parquet o `pandas`, y no vale la pena.
+- **`.dockerignore` es una lista de lo permitido**, no de lo excluido: un `.env` o un archivo nuevo en la raíz no pueden entrar a la imagen por descuido.
+- **El pronóstico del contenedor es idéntico al de Windows**, hasta el último decimal, para el 2026-11-15. LightGBM no lo garantiza entre sistemas operativos; con este modelo y estos datos se cumple.
+
+### CI
+
+- **`ci.yml` corre en cada push y en cada PR**, con dos trabajos: uno con `ruff check`, `ruff format --check` y `pytest` sobre el entorno del lock, y otro que construye la imagen, arranca el contenedor y consulta las tres rutas.
+- **Versiones exactas de las acciones** (`actions/checkout@v7.0.1` y `astral-sh/setup-uv@v10.3.3`) y de `uv` (0.13.7, la misma de la máquina local y de la imagen). La imagen se construye con `docker build` a secas, sin acciones de Docker.
+- **Probado en Linux antes del primer push:** `ruff` y los 233 tests pasan en un contenedor Debian trixie con el entorno del lock. Falta ver el workflow en verde en GitHub.
+- **El contenedor usa 173 MB de memoria** con el servicio arrancado y las tres rutas consultadas.
+
+### Dependencias
+
+- **`fastapi` y `uvicorn` como dependencias de ejecución y `httpx` en el grupo `dev`**, aprobadas por el usuario. Antes estaban instaladas solo porque las arrastra `mlflow`.
+- **Aviso abierto:** Starlette 1.10 marca como obsoleto usar `httpx` en `TestClient` y pide `httpx2`. Los tests pasan con un aviso. Cambiar de paquete es una dependencia nueva y lo decide el usuario.
+
 ## 2026-11-13: Fase 2, modelo y experimentos
 
 ### Features
