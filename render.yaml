@@ -1,0 +1,12 @@
+# Render Blueprint: the forecast API, built from the Dockerfile of this repo.
+services:
+  - type: web
+    name: energuia-api
+    runtime: docker
+    plan: free
+    # Closest region to Colombia. It cannot be changed once the service exists.
+    region: virginia
+    branch: main
+    healthCheckPath: /health
+    # Deploy a commit only after the CI workflow passed on it.
+    autoDeployTrigger: checksPass
