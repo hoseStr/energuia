@@ -169,6 +169,14 @@ def test_the_api_documents_its_three_endpoints(client):
     assert set(paths) == {"/health", "/forecast", "/metrics"}
 
 
+def test_the_bare_address_leads_to_the_documentation(client):
+    response = client.get("/", follow_redirects=False)
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/docs"
+    assert client.get("/docs").status_code == 200
+
+
 def test_the_service_does_not_start_without_a_model(tmp_path, history):
     with pytest.raises(RegistryError, match="run the `train` command first"):
         create_app(tmp_path / "data", tmp_path / "models")
