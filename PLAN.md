@@ -107,7 +107,7 @@ Objetivo: reemplazar suposiciones por hechos antes de diseñar nada.
 - [x] Crear el proyecto con `uv` e instalar `pydataxm`.
 - [x] Listar las métricas con `ReadDB().get_collections()` y ubicar las de demanda. Candidatas: `DemaReal` y `DemaCome` con entidad `Sistema` **(por verificar)**. Elegir una y justificarlo.
 - [x] Descargar una semana y documentar: columnas, unidades, convención de horas (¿columnas `Hour01` a `Hour24`?), tipos y valores faltantes.
-- [x] Medir el retraso de publicación `L`: última fecha disponible frente a la fecha de hoy. Repetir en dos días distintos si es posible. *(3 mediciones, 2026-11-10, 2026-11-11 y 2026-11-13: `DemaCome` completa hasta D−5 en las tres. Falta ver qué pasa en fin de semana y festivo, con los snapshots del 14 al 17 de noviembre; ver `docs/data_notes.md` §3.2 y §3.3.)*
+- [x] Medir el retraso de publicación `L`: última fecha disponible frente a la fecha de hoy. Repetir en dos días distintos si es posible. *(4 mediciones, 2026-11-10, 2026-11-11, 2026-11-13 y 2026-11-14: `DemaCome` completa hasta D−5 en las cuatro. La del sábado 14 no prueba todavía que XM publique en fin de semana; lo deciden los snapshots del 15 al 17 de noviembre. Ver `docs/data_notes.md` §3.2 a §3.4.)*
 - [x] Determinar desde qué fecha hay historia y descargar una muestra antigua para confirmar que el formato no cambió.
 - [x] Escribir los hallazgos en `docs/data_notes.md`.
 

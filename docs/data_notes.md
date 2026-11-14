@@ -144,6 +144,23 @@ Consecuencias para el diseño:
 - **Ningún día completo de `DemaCome` cambió** entre el 11 y el 13 de noviembre (días del 13 de octubre al 6 de noviembre). `Gene` del 7 y del 8, que ya estaba completa el miércoles, cambió un 0,011 % y un 0,014 %, justo cuando se completó `DemaCome` de esos días.
 - La ingesta de ese mismo momento dejó `demand` completa hasta el 2026-11-08 y `generation` hasta el 2026-11-10. El backtest de los baselines no cambió (3,40 % y 3,03 %).
 
+### 3.4 Cuarta medición (2026-11-14, sábado, 18:08)
+
+`explore/08_snapshot.py` (`summary` y `compare`). Primera medición en un día no hábil.
+
+| Métrica | Último día devuelto | Último día completo |
+|---|---|---|
+| `DemaCome` | 2026-11-11 (D−3) | **2026-11-09 (D−5)** |
+| `DemaReal` | 2026-11-11 (D−3) | 2026-11-09 (D−5) |
+| `Gene` | 2026-11-11 (D−3) | 2026-11-11 (D−3) |
+
+- **Mismo retraso por cuarta vez, ahora en sábado.** Es lo que predecía la hipótesis A (§3.2): el sábado 14, `DemaCome` completa hasta el lunes 9. La variante de días hábiles, tal como estaba escrita, predecía que seguiría en el domingo 8.
+- **No prueba todavía que XM publique en sábado.** El lunes 9 se completó entre el viernes a las 11:02 y el sábado a las 18:08. Pudo publicarse el sábado, o el viernes después de las 11:02: sin el snapshot del jueves 12 no se sabe si el domingo 8 que se vio el viernes por la mañana era la publicación del viernes o la del jueves.
+- **El snapshot del domingo 15 sí lo decide.** El sábado a las 18:08 el martes 10 seguía parcial (0,27). Si el domingo aparece completo, se publicó en fin de semana. Si sigue parcial, XM no avanzó en al menos uno de los dos días. El lunes 16 es festivo y da una segunda comprobación.
+- **Cuarta transición de un salto, sin estados intermedios.** La razón `DemaCome` / `Gene` del lunes 9 pasó de 0,25 a 1,00.
+- **Ningún día completo de `DemaCome` cambió** entre el 13 y el 14 de noviembre (días del 14 de octubre al 8 de noviembre). `Gene` del lunes 9 cambió un 0,006 % al completarse `DemaCome` de ese día, el mismo patrón de §3.3.
+- No se corrió la ingesta: los datos del repo siguen en `demand` hasta el 2026-11-08 y `generation` hasta el 2026-11-10.
+
 ## 4. Profundidad de la historia y estabilidad del formato
 
 `explore/05_history.py` (logs en `explore/output/history_*.log`). Historia completa descargada mes a mes: 323 peticiones en ~9 minutos.
