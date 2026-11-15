@@ -38,7 +38,7 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 ### Despliegue
 
 - **Plataforma: Render, capa gratuita.** La eligió el usuario el 2026-11-14. Hugging Face Spaces se descartó porque hay reportes de que Docker pasó a ser de pago en cuentas gratuitas nuevas, y Cloud Run porque exige cuenta de facturación y más configuración.
-- **Condiciones leídas ese día en la documentación de Render:** 512 MB de RAM y 0,1 CPU, 750 horas de instancia al mes por workspace, y el servicio se duerme tras 15 minutos sin tráfico y tarda cerca de un minuto en despertar. El contenedor usa 173 MB, así que cabe. La documentación no dice si pide tarjeta ni cuántos minutos de construcción incluye (**por verificar** al crear la cuenta).
+- **Condiciones leídas ese día en la documentación de Render:** 512 MB de RAM y 0,1 CPU, 750 horas de instancia al mes por workspace, y el servicio se duerme tras 15 minutos sin tráfico y tarda cerca de un minuto en despertar. El contenedor usa 173 MB, así que cabe. Al crear la cuenta y el servicio, el 2026-11-14, Render no pidió tarjeta. La documentación no dice cuántos minutos de construcción incluye el plan gratuito (**por verificar**).
 - **`render.yaml` en la raíz** describe el servicio: imagen construida desde el `Dockerfile`, región `virginia` (la más cercana a Colombia; no se puede cambiar después), comprobación de salud en `/health` y despliegue solo cuando CI pasa en el commit (`autoDeployTrigger: checksPass`).
 - **El puerto lo pone Render** en la variable `PORT` (10000 por defecto), que el comando `serve` ya lee.
 - **Desplegado el 2026-11-14 en https://energuia-api.onrender.com.** Ese día las tres rutas respondieron 200 y `/forecast` devolvió para el 2026-11-15 los mismos valores que el comando `forecast` en local.
@@ -47,8 +47,8 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 
 ### Dependencias
 
-- **`fastapi` y `uvicorn` como dependencias de ejecución y `httpx` en el grupo `dev`**, aprobadas por el usuario. Antes estaban instaladas solo porque las arrastra `mlflow`.
-- **Aviso abierto:** Starlette 1.10 marca como obsoleto usar `httpx` en `TestClient` y pide `httpx2`. Los tests pasan con un aviso. Cambiar de paquete es una dependencia nueva y lo decide el usuario.
+- **`fastapi` y `uvicorn` como dependencias de ejecución**, aprobadas por el usuario. Antes estaban instaladas solo porque las arrastra `mlflow`.
+- **`httpx2` en el grupo `dev`, en lugar de `httpx`.** `TestClient` necesita un cliente HTTP. La fase empezó con `httpx`, pero Starlette 1.10 lo marca como obsoleto para `TestClient` y busca primero `httpx2`, y FastAPI lo documenta igual. El usuario aprobó el cambio el 2026-11-14. Solo afecta a los tests: no entra en la imagen, nada más en el lock pedía `httpx` y el código no cambió. Según PyPI lo mantiene Pydantic (`github.com/pydantic/httpx2`), con el primer release en mayo de 2026; su código no se revisó.
 
 ## 2026-11-13: Fase 2, modelo y experimentos
 

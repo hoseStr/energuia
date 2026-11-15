@@ -184,7 +184,7 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 >
 > - **La bitácora de pronósticos y el error diario son de la Fase 4**, así que en esta fase `/forecast` calcula el pronóstico en cada petición y `/metrics` devuelve el backtest del modelo vigente.
 > - **La función que emite el pronóstico (`serving/forecast.py::issue_forecast`) se escribió aquí** y la reutiliza el job diario de la Fase 4.
-> - **Dependencias aprobadas por el usuario:** `fastapi` y `uvicorn` de ejecución y `httpx` en el grupo `dev`.
+> - **Dependencias aprobadas por el usuario:** `fastapi` y `uvicorn` de ejecución y `httpx2` en el grupo `dev` (empezó como `httpx`; Starlette 1.10 lo marca como obsoleto para `TestClient`).
 
 - [x] `serving/app.py`: `GET /health`, `GET /forecast` (pronóstico vigente con versión del modelo y momento de emisión), `GET /metrics` (error reciente). *(`/metrics` devuelve el backtest del registro hasta que la Fase 4 mida el error real. Se agregaron los comandos `forecast` y `serve`.)*
 - [x] Esquemas Pydantic y tests de la API con `TestClient`. *(`serving/schemas.py`, `tests/test_app.py` y `tests/test_forecast.py`.)*
