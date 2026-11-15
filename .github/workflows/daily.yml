@@ -1,0 +1,108 @@
+name: Daily forecast
+
+on:
+  schedule:
+    # 20:17 UTC is 15:17 in Bogota. GitHub may start scheduled runs late.
+    - cron: "17 20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    name: Ingest, evaluate and forecast
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    outputs:
+      committed: ${{ steps.commit.outputs.committed }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.7"
+          enable-cache: true
+      - name: Install the locked environment
+        run: uv sync --locked --no-dev --group monitoring
+
+      - name: Ingest, score past forecasts and log the forecast for tomorrow
+        run: uv run --no-sync python -m demand_forecast.cli daily
+
+      - name: Check that the forecast log only grew
+        run: |
+          git diff --numstat -- data/predictions \
+            | awk '$2 != 0 { print "lines changed or removed in " $3; bad = 1 } END { exit bad }'
+
+      - name: Commit the data, the forecast log and the errors
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "Nothing changed."
+            echo "committed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit --message "chore: datos y pronóstico del $(TZ=America/Bogota date +%F)"
+          git push || { git pull --rebase && git push; }
+          echo "committed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Drift report
+        # The panel is still worth publishing when this fails.
+        continue-on-error: true
+        run: uv run --no-sync python -m demand_forecast.cli drift
+      - name: Panel
+        run: uv run --no-sync python -m demand_forecast.cli report
+      - uses: actions/upload-pages-artifact@v5.0.0
+        with:
+          path: site
+
+      - name: Open an issue when the recent error is too high
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uv run --no-sync python -m demand_forecast.cli alert --output alert.md
+          if [ ! -f alert.md ]; then
+            exit 0
+          fi
+          gh label create forecast-alert --color D03B3B --force \
+            --description "The live error of the forecast is above its threshold"
+          open=$(gh issue list --label forecast-alert --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body-file alert.md
+          else
+            gh issue create --title "Forecast error above the alert threshold" \
+              --label forecast-alert --body-file alert.md
+          fi
+
+      - name: Redeploy the API with the new forecast
+        if: steps.commit.outputs.committed == 'true'
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL is not set: the API keeps its previous forecast."
+            exit 0
+          fi
+          curl --silent --show-error --fail --request POST "$RENDER_DEPLOY_HOOK_URL" > /dev/null
+
+  pages:
+    name: Publish the panel
+    needs: forecast
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v5.0.1
