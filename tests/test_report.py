@@ -1,4 +1,5 @@
 import json
+import re
 
 import numpy as np
 import pandas as pd
@@ -7,7 +8,7 @@ import pytest
 from demand_forecast import config
 from demand_forecast.data import store
 from demand_forecast.monitoring.drift import DriftSummary
-from demand_forecast.monitoring.report import build_payload, render, write_panel
+from demand_forecast.monitoring.report import TEMPLATE, build_payload, render, write_panel
 from demand_forecast.serving.forecast import Forecast
 from demand_forecast.serving.log import append_forecast, read_log
 
@@ -217,3 +218,47 @@ def test_the_panel_is_written_to_the_site_folder(tmp_path, demand):
     page = path.read_text(encoding="utf-8")
     assert "2026-11-17T23:00:00-05:00" in page
     assert '"drift":null' in page
+
+
+@pytest.fixture(scope="module")
+def page_text() -> tuple[str, dict[str, dict[str, str]]]:
+    """The template of the panel and the texts it carries, by language."""
+    page = TEMPLATE.read_text(encoding="utf-8")
+    opening = '<script type="application/json" id="text">'
+    start = page.index(opening) + len(opening)
+    return page, json.loads(page[start : page.index("</script>", start)])
+
+
+def test_the_panel_comes_in_spanish_and_english(page_text):
+    _, text = page_text
+
+    assert set(text) == {"en", "es"}
+    assert text["en"]["locale"].startswith("en")
+    assert text["es"]["locale"].startswith("es")
+
+
+def test_both_languages_have_the_same_texts_with_the_same_blanks(page_text):
+    _, text = page_text
+
+    assert set(text["es"]) == set(text["en"])
+    for key, english in text["en"].items():
+        spanish = text["es"][key]
+        assert spanish.strip(), key
+        assert set(re.findall(r"\{(\w+)\}", spanish)) <= set(re.findall(r"\{(\w+)\}", english)), key
+
+
+def test_every_text_the_page_asks_for_exists(page_text):
+    page, text = page_text
+    script = page[page.rindex("<script>") :]
+
+    marked = set(re.findall(r'data-t="(\w+)"', page))
+    direct = set(re.findall(r"\bT\.(\w+)", script))
+    templated = set(re.findall(r'\bt\("(\w+)"', script))
+    counted = {
+        f"{key}_{form}"
+        for key in re.findall(r'\bplural\("(\w+)"', script)
+        for form in ("one", "other")
+    }
+
+    assert marked and direct and templated and counted
+    assert marked | direct | templated | counted <= set(text["en"])

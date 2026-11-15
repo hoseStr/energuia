@@ -30,6 +30,16 @@ h2 { font-size: 17px; margin: 0; }
 p { margin: 0; }
 a { color: inherit; text-decoration-color: var(--axis); text-underline-offset: 3px; }
 a:hover { text-decoration-color: currentColor; }
+.top { display: flex; flex-wrap: wrap-reverse; justify-content: space-between; align-items: flex-start; gap: 8px 24px; }
+.top h1 { flex: 1 1 320px; }
+.lang { display: inline-flex; flex: none; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.lang button {
+  font: inherit; font-size: 13px; color: var(--ink-2); background: transparent; border: 0;
+  padding: 4px 12px; cursor: pointer;
+}
+.lang button + button { border-left: 1px solid var(--border); }
+.lang button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
+.lang button:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; }
 .lede { color: var(--ink-2); max-width: 70ch; }
 .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 28px 0 12px; }
@@ -42,7 +52,7 @@ a:hover { text-decoration-color: currentColor; }
 section.card { margin-top: 12px; }
 .subtitle { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 12px 0 4px; font-size: 13px; color: var(--ink-2); }
-.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend > span { display: inline-flex; align-items: center; gap: 6px; }
 .legend[hidden] { display: none; }
 .key-line { width: 16px; height: 2px; border-radius: 1px; }
 .key-rect { width: 10px; height: 10px; border-radius: 2px; }
@@ -75,73 +85,205 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
 <body>
 <main>
   <header>
-    <h1>Day-ahead electricity demand forecast for Colombia</h1>
-    <p class="lede">Every day a model forecasts the hourly demand of the national grid for the next day and
-      writes it to a public log before that day starts. Once the grid operator (XM) publishes the actual demand,
-      about six days later, each forecast is scored here.</p>
+    <div class="top">
+      <h1 data-t="h1"></h1>
+      <div class="lang" role="group" id="lang">
+        <button type="button" data-lang="es" lang="es" aria-pressed="false">Español</button>
+        <button type="button" data-lang="en" lang="en" aria-pressed="false">English</button>
+      </div>
+    </div>
+    <p class="lede" data-t="lede"></p>
     <nav class="links" id="links"></nav>
   </header>
 
   <div class="tiles" id="tiles"></div>
 
   <section class="card">
-    <h2>Forecast and actual demand</h2>
+    <h2 data-t="hourly_title"></h2>
     <p class="subtitle" id="hourly-subtitle"></p>
-    <div class="legend">
-      <span><i class="key-line" style="background: var(--series-1)"></i>Forecast</span>
-      <span><i class="key-line" style="background: var(--series-2)"></i>Actual</span>
+    <div class="legend" id="hourly-legend">
+      <span><i class="key-line" style="background: var(--series-1)"></i><span data-t="forecast"></span></span>
+      <span><i class="key-line" style="background: var(--series-2)"></i><span data-t="actual"></span></span>
     </div>
     <div class="chart" id="hourly-chart"></div>
     <details>
-      <summary>Table view: daily totals</summary>
+      <summary data-t="table_summary"></summary>
       <div class="table-wrap"><table id="days-table"></table></div>
       <p class="subtitle" id="hourly-source"></p>
     </details>
   </section>
 
   <section class="card">
-    <h2>Error of each evaluated day</h2>
-    <p class="subtitle">Mean absolute percentage error (MAPE) of the 24 hours of each day, and its running mean since the first forecast.</p>
-    <div class="legend">
-      <span><i class="key-rect" style="background: var(--series-1)"></i>MAPE of the day</span>
-      <span><i class="key-line" style="background: var(--series-2)"></i>Cumulative MAPE</span>
+    <h2 data-t="error_title"></h2>
+    <p class="subtitle" data-t="error_subtitle"></p>
+    <div class="legend" id="error-legend">
+      <span><i class="key-rect" style="background: var(--series-1)"></i><span data-t="day_mape"></span></span>
+      <span><i class="key-line" style="background: var(--series-2)"></i><span data-t="cumulative_mape"></span></span>
     </div>
     <div class="chart" id="error-chart"></div>
   </section>
 
   <section class="card">
-    <h2>Feature drift</h2>
+    <h2 data-t="drift_title"></h2>
     <div class="prose" id="drift"></div>
   </section>
 
   <section class="card">
-    <h2>How to read this page</h2>
+    <h2 data-t="how_title"></h2>
     <div class="prose">
-      <p>The forecast log only grows: a scheduled job appends 24 lines a day and never rewrites one, so the
-        history of the repository shows that each forecast existed before its day. A day without a run stays
-        empty; nothing is filled in afterwards.</p>
-      <p>The backtest figure is the error of the same model over the previous twelve months, replayed with only
-        the data that was published at each moment. The live error is expected to sit near it; an issue is opened
-        automatically when the last seven evaluated days exceed 1.5 times that figure.</p>
+      <p data-t="how_log"></p>
+      <p data-t="how_backtest"></p>
     </div>
   </section>
 
   <footer id="footer"></footer>
 </main>
 
+<script type="application/json" id="text">
+{
+  "en": {
+    "locale": "en-GB",
+    "title": "Colombia demand forecast: live panel",
+    "language": "Language",
+    "h1": "Day-ahead electricity demand forecast for Colombia",
+    "lede": "Every day a model forecasts the hourly demand of the national grid for the next day and writes it to a public log before that day starts. Once the grid operator (XM) publishes the actual demand, about six days later, each forecast is scored here.",
+    "link_repo": "Source code",
+    "link_api": "Forecast API",
+    "link_log": "Forecast log (CSV)",
+    "percent": "{value}%",
+    "forecast": "Forecast",
+    "actual": "Actual",
+    "pending": "pending",
+    "day_workday": "Workday",
+    "day_saturday": "Saturday",
+    "day_sunday_or_holiday": "Sunday or holiday",
+    "tile_live": "Live MAPE",
+    "tile_live_note_one": "{n} evaluated day, {first} to {last}",
+    "tile_live_note_other": "{n} evaluated days, {first} to {last}",
+    "tile_live_empty": "No forecast has been evaluated yet: the actual demand arrives about six days after each day.",
+    "tile_recent": "Last {n} evaluated days",
+    "tile_recent_note": "Alert above {threshold}",
+    "tile_recent_empty": "Needs {n} evaluated days. Alert above {threshold}.",
+    "status_ok": "Within the expected range",
+    "status_alert": "Above the alert threshold",
+    "tile_backtest": "Backtest MAPE",
+    "tile_backtest_note": "{start} to {end}. Best baseline: {baseline}",
+    "tile_latest": "Latest forecast",
+    "tile_latest_note": "For {day}, issued {moment}",
+    "tile_latest_empty": "The first forecast has not been logged yet.",
+    "footer": "Generated {moment} (Bogotá time). Model {model}. Data: XM, metric DemaCome.",
+    "hourly_title": "Forecast and actual demand",
+    "hourly_subtitle_one": "Hourly demand in GWh, last forecast day. The actual line ends where XM has published complete data.",
+    "hourly_subtitle_other": "Hourly demand in GWh, last {n} forecast days. The actual line ends where XM has published complete data.",
+    "hourly_label": "Line chart of the hourly demand forecast and the actual demand",
+    "hourly_empty": "No forecast has been logged yet. The first one appears after the next daily run.",
+    "tooltip_pending": "Actual not published yet",
+    "tooltip_error": "Error {value}",
+    "table_summary": "Table view: daily totals",
+    "col_day": "Day",
+    "col_type": "Type",
+    "col_forecast": "Forecast (GWh)",
+    "col_actual": "Actual (GWh)",
+    "col_mape": "MAPE",
+    "source_before": "Every hourly value is in the ",
+    "source_link": "forecast log",
+    "source_after": ".",
+    "error_title": "Error of each evaluated day",
+    "error_subtitle": "Mean absolute percentage error (MAPE) of the 24 hours of each day, and its running mean since the first forecast.",
+    "day_mape": "MAPE of the day",
+    "cumulative_mape": "Cumulative MAPE",
+    "error_label": "Column chart of the MAPE of each evaluated day with its running mean",
+    "error_empty": "No day has been evaluated yet. XM publishes the complete demand of a day about six days later.",
+    "reference_backtest": "Backtest {value}",
+    "drift_title": "Feature drift",
+    "drift_summary_one": "{count} of the {total} load features the model reads drifted in the last forecast day, compared with the period the model was trained on ({start} to {end}). A feature counts as drifted when it sits farther from that period than {quantile}% of the windows of the same length inside it ({method}).",
+    "drift_summary_other": "{count} of the {total} load features the model reads drifted in the last {n} forecast days, compared with the period the model was trained on ({start} to {end}). A feature counts as drifted when it sits farther from that period than {quantile}% of the windows of the same length inside it ({method}).",
+    "drift_list": "Drifted: {names}.",
+    "drift_link": "Open the full drift report (Evidently)",
+    "drift_empty": "The drift report compares the features of the logged forecasts with the training period. It appears once {n} forecast days are logged: a shorter window covers only some days of the week and raises false alarms.",
+    "method_wasserstein": "Wasserstein distance (normed)",
+    "how_title": "How to read this page",
+    "how_log": "The forecast log only grows: a scheduled job appends 24 lines a day and never rewrites one, so the history of the repository shows that each forecast existed before its day. A day without a run stays empty; nothing is filled in afterwards.",
+    "how_backtest": "The backtest figure is the error of the same model over the previous twelve months, replayed with only the data that was published at each moment. The live error is expected to sit near it; an issue is opened automatically when the last seven evaluated days exceed 1.5 times that figure."
+  },
+  "es": {
+    "locale": "es-CO",
+    "title": "Pronóstico de demanda de Colombia: panel en vivo",
+    "language": "Idioma",
+    "h1": "Pronóstico de la demanda eléctrica de Colombia para el día siguiente",
+    "lede": "Cada día un modelo pronostica la demanda horaria del sistema eléctrico nacional para el día siguiente y la escribe en una bitácora pública antes de que ese día empiece. Cuando el operador del mercado (XM) publica la demanda real, unos seis días después, cada pronóstico se evalúa aquí.",
+    "link_repo": "Código fuente",
+    "link_api": "API del pronóstico",
+    "link_log": "Bitácora de pronósticos (CSV)",
+    "percent": "{value} %",
+    "forecast": "Pronóstico",
+    "actual": "Real",
+    "pending": "pendiente",
+    "day_workday": "Laboral",
+    "day_saturday": "Sábado",
+    "day_sunday_or_holiday": "Domingo o festivo",
+    "tile_live": "MAPE en vivo",
+    "tile_live_note_one": "{n} día evaluado, del {first} al {last}",
+    "tile_live_note_other": "{n} días evaluados, del {first} al {last}",
+    "tile_live_empty": "Aún no se ha evaluado ningún pronóstico: la demanda real llega unos seis días después de cada día.",
+    "tile_recent": "Últimos {n} días evaluados",
+    "tile_recent_note": "Alerta por encima de {threshold}",
+    "tile_recent_empty": "Necesita {n} días evaluados. Alerta por encima de {threshold}.",
+    "status_ok": "Dentro del rango esperado",
+    "status_alert": "Por encima del umbral de alerta",
+    "tile_backtest": "MAPE del backtest",
+    "tile_backtest_note": "Del {start} al {end}. Mejor baseline: {baseline}",
+    "tile_latest": "Último pronóstico",
+    "tile_latest_note": "Para el {day}, emitido el {moment}",
+    "tile_latest_empty": "Aún no se ha registrado el primer pronóstico.",
+    "footer": "Generado el {moment} (hora de Bogotá). Modelo {model}. Datos: XM, métrica DemaCome.",
+    "hourly_title": "Pronóstico y demanda real",
+    "hourly_subtitle_one": "Demanda horaria en GWh, último día pronosticado. La línea real termina donde XM ya publicó datos completos.",
+    "hourly_subtitle_other": "Demanda horaria en GWh, últimos {n} días pronosticados. La línea real termina donde XM ya publicó datos completos.",
+    "hourly_label": "Gráfica de líneas del pronóstico horario de la demanda y de la demanda real",
+    "hourly_empty": "Aún no se ha registrado ningún pronóstico. El primero aparece después de la próxima corrida diaria.",
+    "tooltip_pending": "Dato real aún no publicado",
+    "tooltip_error": "Error {value}",
+    "table_summary": "Ver como tabla: totales por día",
+    "col_day": "Día",
+    "col_type": "Tipo",
+    "col_forecast": "Pronóstico (GWh)",
+    "col_actual": "Real (GWh)",
+    "col_mape": "MAPE",
+    "source_before": "Todos los valores horarios están en la ",
+    "source_link": "bitácora de pronósticos",
+    "source_after": ".",
+    "error_title": "Error de cada día evaluado",
+    "error_subtitle": "Error porcentual absoluto medio (MAPE) de las 24 horas de cada día, y su media acumulada desde el primer pronóstico.",
+    "day_mape": "MAPE del día",
+    "cumulative_mape": "MAPE acumulado",
+    "error_label": "Gráfica de columnas del MAPE de cada día evaluado con su media acumulada",
+    "error_empty": "Aún no se ha evaluado ningún día. XM publica la demanda completa de un día unos seis días después.",
+    "reference_backtest": "Backtest {value}",
+    "drift_title": "Drift de las features",
+    "drift_summary_one": "{count} de las {total} features de carga que lee el modelo tienen drift en el último día pronosticado, frente al periodo con el que se entrenó el modelo ({start} a {end}). Una feature tiene drift cuando queda más lejos de ese periodo que el {quantile} % de las ventanas del mismo tamaño dentro de él ({method}).",
+    "drift_summary_other": "{count} de las {total} features de carga que lee el modelo tienen drift en los últimos {n} días pronosticados, frente al periodo con el que se entrenó el modelo ({start} a {end}). Una feature tiene drift cuando queda más lejos de ese periodo que el {quantile} % de las ventanas del mismo tamaño dentro de él ({method}).",
+    "drift_list": "Con drift: {names}.",
+    "drift_link": "Abrir el informe completo de drift (Evidently, en inglés)",
+    "drift_empty": "El informe de drift compara las features de los pronósticos registrados con el periodo de entrenamiento. Aparece cuando la bitácora tiene {n} días pronosticados: una ventana más corta solo cubre algunos días de la semana y da falsas alarmas.",
+    "method_wasserstein": "distancia de Wasserstein normalizada",
+    "how_title": "Cómo leer esta página",
+    "how_log": "La bitácora de pronósticos solo crece: un job programado agrega 24 líneas al día y nunca reescribe ninguna, así que el historial del repositorio muestra que cada pronóstico existía antes de su día. Un día sin corrida queda vacío; no se rellena después.",
+    "how_backtest": "La cifra del backtest es el error del mismo modelo en los doce meses anteriores, repetidos solo con los datos que estaban publicados en cada momento. Se espera que el error en vivo quede cerca; cuando los últimos siete días evaluados superan 1,5 veces esa cifra, se abre un issue automáticamente."
+  }
+}
+</script>
 <script type="application/json" id="data">__PAYLOAD__</script>
 <script>
 (() => {
   const D = JSON.parse(document.getElementById("data").textContent);
+  const TEXT = JSON.parse(document.getElementById("text").textContent);
   const SVG = "http://www.w3.org/2000/svg";
+  const STORAGE_KEY = "panel-language";
+  const METHODS = { "Wasserstein distance (normed)": "method_wasserstein" };
   const zone = D.timezone;
-  const dayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short" });
-  const shortDay = new Intl.DateTimeFormat("en-GB", { timeZone: zone, day: "numeric", month: "short" });
-  const hourFormat = new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const moment = new Intl.DateTimeFormat("en-GB", { timeZone: zone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const asDay = (text) => new Date(text + "T12:00:00-05:00");
-  const percent = (value, digits = 2) => value.toFixed(digits) + "%";
-  const DAY_TYPES = { workday: "Workday", saturday: "Saturday", sunday_or_holiday: "Sunday or holiday" };
+  const observers = [];
 
   function el(tag, attrs = {}, text) {
     const node = document.createElement(tag);
@@ -156,56 +298,29 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
     return node;
   }
 
-  // ---- Links, tiles, footer -------------------------------------------------
-  const links = document.getElementById("links");
-  for (const [label, href] of [["Source code", D.links.repo], ["Forecast API", D.links.api], ["Forecast log (CSV)", D.links.log]]) {
-    links.append(el("a", { href }, label));
+  // ---- Language ---------------------------------------------------------------
+  function stored() {
+    try { return localStorage.getItem(STORAGE_KEY); } catch { return null; }
+  }
+  function initialLanguage() {
+    const asked = new URLSearchParams(location.search).get("lang");
+    if (asked in TEXT) return asked;
+    const saved = stored();
+    if (saved in TEXT) return saved;
+    return (navigator.languages || [navigator.language || "en"]).some((code) => /^es\b/i.test(code)) ? "es" : "en";
+  }
+  function choose(language) {
+    try { localStorage.setItem(STORAGE_KEY, language); } catch { /* the choice still applies to this visit */ }
+    const url = new URL(location.href);
+    url.searchParams.set("lang", language);
+    history.replaceState(null, "", url);
+    render(language);
+  }
+  for (const button of document.querySelectorAll("#lang button")) {
+    button.addEventListener("click", () => choose(button.dataset.lang));
   }
 
-  function tile(label, value, note, status) {
-    const card = el("div", { class: "card tile" });
-    card.append(el("div", { class: "label" }, label), el("div", { class: "value" }, value));
-    if (status) {
-      const line = el("div", { class: "status" });
-      const icon = svg("svg", { width: 12, height: 12, viewBox: "0 0 12 12", "aria-hidden": "true" });
-      icon.append(status.ok
-        ? svg("circle", { cx: 6, cy: 6, r: 5, fill: "var(--good)" })
-        : svg("path", { d: "M6 1 L11 11 H1 Z", fill: "var(--critical)" }));
-      line.append(icon, document.createTextNode(status.text));
-      card.append(line);
-    }
-    card.append(el("div", { class: "note" }, note));
-    return card;
-  }
-
-  const tiles = document.getElementById("tiles");
-  const backtest = D.backtest;
-  if (D.live) {
-    tiles.append(tile("Live MAPE", percent(D.live.mape),
-      `${D.live.evaluated_days} evaluated day${D.live.evaluated_days === 1 ? "" : "s"}, ${shortDay.format(asDay(D.live.first_day))} to ${shortDay.format(asDay(D.live.last_day))}`));
-  } else {
-    tiles.append(tile("Live MAPE", "–", "No forecast has been evaluated yet: the actual demand arrives about six days after each day."));
-  }
-  if (D.live && D.live.recent_mape !== null) {
-    const ok = D.live.recent_mape <= D.alert_threshold;
-    tiles.append(tile(`Last ${D.live.recent_days} evaluated days`, percent(D.live.recent_mape),
-      `Alert above ${percent(D.alert_threshold)}`, { ok, text: ok ? "Within the expected range" : "Above the alert threshold" }));
-  } else {
-    tiles.append(tile(`Last ${D.recent_days} evaluated days`, "–", `Needs ${D.recent_days} evaluated days. Alert above ${percent(D.alert_threshold)}.`));
-  }
-  tiles.append(tile("Backtest MAPE", percent(backtest.mape),
-    `${shortDay.format(asDay(backtest.start))} ${backtest.start.slice(0, 4)} to ${shortDay.format(asDay(backtest.end))} ${backtest.end.slice(0, 4)}. Best baseline: ${percent(backtest.best_baseline_mape)}`));
-  if (D.latest) {
-    tiles.append(tile("Latest forecast", D.latest.total_gwh.toFixed(1) + " GWh",
-      `For ${dayFormat.format(asDay(D.latest.target_day))}, issued ${moment.format(new Date(D.latest.issued_at))}`));
-  } else {
-    tiles.append(tile("Latest forecast", "–", "The first forecast has not been logged yet."));
-  }
-
-  document.getElementById("footer").textContent =
-    `Generated ${moment.format(new Date(D.generated_at))} (Bogotá time). Model ${D.model_version}. Data: XM, metric DemaCome.`;
-
-  // ---- Chart ----------------------------------------------------------------
+  // ---- Chart ------------------------------------------------------------------
   function niceTicks(low, high, count) {
     const span = high - low || 1;
     const step0 = Math.pow(10, Math.floor(Math.log10(span / count)));
@@ -217,7 +332,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
   }
 
   // cfg: { count, when(i), ticks: [{ i, label }], series: [{ name, type, color, values }],
-  //        zero, format(value), reference: { value, label } | null, label }
+  //        zero, format(value, full), extra(i), reference: { value, label } | null, label }
   function chart(host, cfg) {
     const tooltip = el("div", { class: "tooltip", hidden: "" });
     let active = null;
@@ -283,6 +398,10 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
         root.append(svg("line", { x1: pad.left, x2: width - pad.right, y1: at, y2: at, stroke: "var(--muted)", "stroke-width": 1 }));
         const label = svg("text", { x: width - pad.right, y: at - 6, "text-anchor": "end" }, cfg.reference.label);
         label.style.fill = "var(--ink-2)";
+        label.style.paintOrder = "stroke";
+        label.style.stroke = "var(--surface)";
+        label.style.strokeWidth = "4px";
+        label.style.strokeLinejoin = "round";
         root.append(label);
       }
 
@@ -346,102 +465,189 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
 
     draw();
     let lastWidth = host.clientWidth;
-    new ResizeObserver(() => {
+    const observer = new ResizeObserver(() => {
       if (host.clientWidth === lastWidth) return;
       lastWidth = host.clientWidth;
       draw();
-    }).observe(host);
-  }
-
-  // ---- Forecast and actual, hourly ------------------------------------------
-  const hours = D.hourly;
-  const hourlyHost = document.getElementById("hourly-chart");
-  if (hours.length) {
-    const times = hours.map((row) => new Date(row[0]));
-    const ticks = [];
-    hours.forEach((row, i) => { if (row[0].slice(11, 13) === "00") ticks.push({ i: i + 12, label: shortDay.format(times[i]) }); });
-    const shown = hours.length / 24;
-    document.getElementById("hourly-subtitle").textContent =
-      `Hourly demand in GWh, last ${shown} forecast day${shown === 1 ? "" : "s"}. The actual line ends where XM has published complete data.`;
-    chart(hourlyHost, {
-      label: "Line chart of the hourly demand forecast and the actual demand",
-      count: hours.length,
-      when: (i) => hourFormat.format(times[i]),
-      ticks: ticks.map((tick) => ({ i: Math.min(tick.i, hours.length - 1), label: tick.label })),
-      series: [
-        { name: "Forecast", type: "line", color: "var(--series-1)", values: hours.map((row) => row[1]) },
-        { name: "Actual", type: "line", color: "var(--series-2)", values: hours.map((row) => row[2]) },
-      ],
-      zero: false,
-      format: (value, full) => (full ? value.toFixed(2) + " GWh" : value.toFixed(value % 1 ? 1 : 0)),
-      extra: (i) => (hours[i][2] === null ? "Actual not published yet"
-        : `Error ${percent(Math.abs(hours[i][1] - hours[i][2]) / hours[i][2] * 100)}`),
-      reference: null,
     });
-  } else {
-    hourlyHost.previousElementSibling.hidden = true;
-    hourlyHost.append(el("p", { class: "empty" }, "No forecast has been logged yet. The first one appears after the next daily run."));
+    observer.observe(host);
+    observers.push(observer);
   }
 
-  // ---- Table of days ----------------------------------------------------------
-  const table = document.getElementById("days-table");
-  const head = el("tr");
-  for (const name of ["Day", "Type", "Forecast (GWh)", "Actual (GWh)", "MAPE"]) head.append(el("th", { scope: "col" }, name));
-  table.append(head);
-  for (const row of [...D.days].reverse()) {
-    const line = el("tr");
-    line.append(
-      el("td", {}, dayFormat.format(asDay(row.day)) + " " + row.day.slice(0, 4)),
-      el("td", {}, DAY_TYPES[row.day_type] || row.day_type),
-      el("td", {}, row.predicted_gwh.toFixed(1)),
-      el("td", {}, row.actual_gwh === null ? "pending" : row.actual_gwh.toFixed(1)),
-      el("td", {}, row.mape === null ? "pending" : percent(row.mape)),
-    );
-    table.append(line);
-  }
-  const source = document.getElementById("hourly-source");
-  source.append("Every hourly value is in the ", el("a", { href: D.links.log }, "forecast log"), ".");
+  // ---- Page, in one language ------------------------------------------------------
+  function render(language) {
+    const T = TEXT[language];
+    const t = (key, vars = {}) => T[key].replace(/\{(\w+)\}/g, (_, name) => vars[name]);
+    const plural = (key, n, vars = {}) => t(key + (n === 1 ? "_one" : "_other"), { n, ...vars });
+    const fixed = (value, digits) => value.toLocaleString(T.locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    const compact = (value) => value.toLocaleString(T.locale, { maximumFractionDigits: 2 });
+    const percent = (value) => t("percent", { value: fixed(value, 2) });
+    const dates = (options) => new Intl.DateTimeFormat(T.locale, { timeZone: zone, ...options });
+    const shortDay = dates({ day: "numeric", month: "short" });
+    const fullDay = dates({ day: "numeric", month: "short", year: "numeric" });
+    const weekDay = dates({ weekday: "short", day: "numeric", month: "short" });
+    const weekDayYear = dates({ weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    const hourFormat = dates({ weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+    const moment = dates({ day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const dayType = (name) => T["day_" + name] || name;
 
-  // ---- Error by day -----------------------------------------------------------
-  const scored = D.days.filter((row) => row.mape !== null);
-  const errorHost = document.getElementById("error-chart");
-  if (scored.length) {
-    chart(errorHost, {
-      label: "Column chart of the MAPE of each evaluated day with its running mean",
-      count: scored.length,
-      when: (i) => dayFormat.format(asDay(scored[i].day)) + " · " + (DAY_TYPES[scored[i].day_type] || ""),
-      ticks: scored.map((row, i) => ({ i, label: shortDay.format(asDay(row.day)) })),
-      series: [
-        { name: "MAPE of the day", type: "column", color: "var(--series-1)", values: scored.map((row) => row.mape) },
-        { name: "Cumulative MAPE", type: "line", color: "var(--series-2)", values: scored.map((row) => row.cumulative_mape) },
-      ],
-      zero: true,
-      format: (value, full) => (full ? percent(value) : value + "%"),
-      reference: { value: backtest.mape, label: `Backtest ${percent(backtest.mape)}` },
-    });
-  } else {
-    errorHost.previousElementSibling.hidden = true;
-    errorHost.append(el("p", { class: "empty" }, "No day has been evaluated yet. XM publishes the complete demand of a day about six days later."));
+    document.documentElement.lang = language;
+    document.title = T.title;
+    for (const node of document.querySelectorAll("[data-t]")) node.textContent = T[node.dataset.t];
+    document.getElementById("lang").setAttribute("aria-label", T.language);
+    for (const button of document.querySelectorAll("#lang button")) {
+      button.setAttribute("aria-pressed", String(button.dataset.lang === language));
+    }
+    observers.splice(0).forEach((observer) => observer.disconnect());
+
+    // Links, tiles and footer
+    const links = document.getElementById("links");
+    links.replaceChildren();
+    for (const [key, href] of [["link_repo", D.links.repo], ["link_api", D.links.api], ["link_log", D.links.log]]) {
+      links.append(el("a", { href }, T[key]));
+    }
+
+    function tile(label, value, note, status) {
+      const card = el("div", { class: "card tile" });
+      card.append(el("div", { class: "label" }, label), el("div", { class: "value" }, value));
+      if (status) {
+        const line = el("div", { class: "status" });
+        const icon = svg("svg", { width: 12, height: 12, viewBox: "0 0 12 12", "aria-hidden": "true" });
+        icon.append(status.ok
+          ? svg("circle", { cx: 6, cy: 6, r: 5, fill: "var(--good)" })
+          : svg("path", { d: "M6 1 L11 11 H1 Z", fill: "var(--critical)" }));
+        line.append(icon, document.createTextNode(status.text));
+        card.append(line);
+      }
+      card.append(el("div", { class: "note" }, note));
+      return card;
+    }
+
+    const tiles = document.getElementById("tiles");
+    tiles.replaceChildren();
+    const backtest = D.backtest;
+    const threshold = percent(D.alert_threshold);
+    if (D.live) {
+      tiles.append(tile(T.tile_live, percent(D.live.mape), plural("tile_live_note", D.live.evaluated_days, {
+        first: shortDay.format(asDay(D.live.first_day)), last: shortDay.format(asDay(D.live.last_day)),
+      })));
+    } else {
+      tiles.append(tile(T.tile_live, "–", T.tile_live_empty));
+    }
+    if (D.live && D.live.recent_mape !== null) {
+      const ok = D.live.recent_mape <= D.alert_threshold;
+      tiles.append(tile(t("tile_recent", { n: D.live.recent_days }), percent(D.live.recent_mape),
+        t("tile_recent_note", { threshold }), { ok, text: ok ? T.status_ok : T.status_alert }));
+    } else {
+      tiles.append(tile(t("tile_recent", { n: D.recent_days }), "–", t("tile_recent_empty", { n: D.recent_days, threshold })));
+    }
+    tiles.append(tile(T.tile_backtest, percent(backtest.mape), t("tile_backtest_note", {
+      start: fullDay.format(asDay(backtest.start)), end: fullDay.format(asDay(backtest.end)),
+      baseline: percent(backtest.best_baseline_mape),
+    })));
+    if (D.latest) {
+      tiles.append(tile(T.tile_latest, fixed(D.latest.total_gwh, 1) + " GWh", t("tile_latest_note", {
+        day: weekDay.format(asDay(D.latest.target_day)), moment: moment.format(new Date(D.latest.issued_at)),
+      })));
+    } else {
+      tiles.append(tile(T.tile_latest, "–", T.tile_latest_empty));
+    }
+
+    document.getElementById("footer").textContent =
+      t("footer", { moment: moment.format(new Date(D.generated_at)), model: D.model_version });
+
+    // Forecast and actual, hourly
+    const hours = D.hourly;
+    const hourlyHost = document.getElementById("hourly-chart");
+    hourlyHost.replaceChildren();
+    document.getElementById("hourly-legend").hidden = !hours.length;
+    document.getElementById("hourly-subtitle").textContent = hours.length ? plural("hourly_subtitle", hours.length / 24) : "";
+    if (hours.length) {
+      const times = hours.map((row) => new Date(row[0]));
+      const ticks = [];
+      hours.forEach((row, i) => { if (row[0].slice(11, 13) === "00") ticks.push({ i: i + 12, label: shortDay.format(times[i]) }); });
+      chart(hourlyHost, {
+        label: T.hourly_label,
+        count: hours.length,
+        when: (i) => hourFormat.format(times[i]),
+        ticks: ticks.map((tick) => ({ i: Math.min(tick.i, hours.length - 1), label: tick.label })),
+        series: [
+          { name: T.forecast, type: "line", color: "var(--series-1)", values: hours.map((row) => row[1]) },
+          { name: T.actual, type: "line", color: "var(--series-2)", values: hours.map((row) => row[2]) },
+        ],
+        zero: false,
+        format: (value, full) => (full ? fixed(value, 2) + " GWh" : compact(value)),
+        extra: (i) => (hours[i][2] === null ? T.tooltip_pending
+          : t("tooltip_error", { value: percent(Math.abs(hours[i][1] - hours[i][2]) / hours[i][2] * 100) })),
+        reference: null,
+      });
+    } else {
+      hourlyHost.append(el("p", { class: "empty" }, T.hourly_empty));
+    }
+
+    // Table of days
+    const table = document.getElementById("days-table");
+    table.replaceChildren();
+    const head = el("tr");
+    for (const key of ["col_day", "col_type", "col_forecast", "col_actual", "col_mape"]) head.append(el("th", { scope: "col" }, T[key]));
+    table.append(head);
+    for (const row of [...D.days].reverse()) {
+      const line = el("tr");
+      line.append(
+        el("td", {}, weekDayYear.format(asDay(row.day))),
+        el("td", {}, dayType(row.day_type)),
+        el("td", {}, fixed(row.predicted_gwh, 1)),
+        el("td", {}, row.actual_gwh === null ? T.pending : fixed(row.actual_gwh, 1)),
+        el("td", {}, row.mape === null ? T.pending : percent(row.mape)),
+      );
+      table.append(line);
+    }
+    document.getElementById("hourly-source").replaceChildren(
+      T.source_before, el("a", { href: D.links.log }, T.source_link), T.source_after);
+
+    // Error by day
+    const scored = D.days.filter((row) => row.mape !== null);
+    const errorHost = document.getElementById("error-chart");
+    errorHost.replaceChildren();
+    document.getElementById("error-legend").hidden = !scored.length;
+    if (scored.length) {
+      chart(errorHost, {
+        label: T.error_label,
+        count: scored.length,
+        when: (i) => weekDay.format(asDay(scored[i].day)) + " · " + dayType(scored[i].day_type),
+        ticks: scored.map((row, i) => ({ i, label: shortDay.format(asDay(row.day)) })),
+        series: [
+          { name: T.day_mape, type: "column", color: "var(--series-1)", values: scored.map((row) => row.mape) },
+          { name: T.cumulative_mape, type: "line", color: "var(--series-2)", values: scored.map((row) => row.cumulative_mape) },
+        ],
+        zero: true,
+        format: (value, full) => (full ? percent(value) : t("percent", { value: compact(value) })),
+        reference: { value: backtest.mape, label: t("reference_backtest", { value: percent(backtest.mape) }) },
+      });
+    } else {
+      errorHost.append(el("p", { class: "empty" }, T.error_empty));
+    }
+
+    // Drift
+    const drift = document.getElementById("drift");
+    drift.replaceChildren();
+    if (D.drift) {
+      const method = METHODS[D.drift.method];
+      drift.append(el("p", {}, plural("drift_summary", D.drift.current_days, {
+        count: D.drift.drifted.length, total: Object.keys(D.drift.scores).length,
+        start: D.drift.reference_start, end: D.drift.reference_end,
+        quantile: Math.round(D.drift.quantile * 100), method: method ? T[method] : D.drift.method,
+      })));
+      if (D.drift.drifted.length) drift.append(el("p", {}, t("drift_list", { names: D.drift.drifted.join(", ") })));
+      const more = el("p");
+      more.append(el("a", { href: "drift.html" }, T.drift_link));
+      drift.append(more);
+    } else {
+      drift.append(el("p", {}, t("drift_empty", { n: D.drift_min_days })));
+    }
   }
 
-  // ---- Drift ------------------------------------------------------------------
-  const drift = document.getElementById("drift");
-  if (D.drift) {
-    const total = Object.keys(D.drift.scores).length;
-    const count = D.drift.drifted.length;
-    drift.append(el("p", {},
-      `${count} of the ${total} load features the model reads drifted in the last ${D.drift.current_days} forecast day${D.drift.current_days === 1 ? "" : "s"}, ` +
-      `compared with the period the model was trained on (${D.drift.reference_start} to ${D.drift.reference_end}). ` +
-      `A feature counts as drifted when it sits farther from that period than ${Math.round(D.drift.quantile * 100)}% of the windows of the same length inside it (${D.drift.method}).`));
-    if (count) drift.append(el("p", {}, "Drifted: " + D.drift.drifted.join(", ") + "."));
-    const more = el("p");
-    more.append(el("a", { href: "drift.html" }, "Open the full drift report (Evidently)"));
-    drift.append(more);
-  } else {
-    drift.append(el("p", {},
-      "The drift report compares the features of the logged forecasts with the training period. " +
-      `It appears once ${D.drift_min_days} forecast days are logged: a shorter window covers only some days of the week and raises false alarms.`));
-  }
+  render(initialLanguage());
 })();
 </script>
 </body>
