@@ -438,7 +438,9 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
     more.append(el("a", { href: "drift.html" }, "Open the full drift report (Evidently)"));
     drift.append(more);
   } else {
-    drift.append(el("p", {}, "The drift report compares the features of the logged forecasts with the training period. It appears once the first forecast is logged."));
+    drift.append(el("p", {},
+      "The drift report compares the features of the logged forecasts with the training period. " +
+      `It appears once ${D.drift_min_days} forecast days are logged: a shorter window covers only some days of the week and raises false alarms.`));
   }
 })();
 </script>

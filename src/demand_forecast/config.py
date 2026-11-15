@@ -113,6 +113,9 @@ DRIFT_WINDOW_DAYS = 28
 # A feature drifted when its distance to the reference exceeds what this share of the windows
 # of the same length inside the reference showed (docs/decisions.md).
 DRIFT_QUANTILE = 0.99
+# Logged days needed for a drift report. A shorter window covers only some weekdays, and its
+# threshold raises false alarms on the others (explore/12_short_drift_windows.py).
+DRIFT_MIN_DAYS = 7
 # Generated site (panel and drift report); published to GitHub Pages, never committed.
 SITE_DIR = Path(os.environ.get("DEMAND_FORECAST_SITE_DIR", "site"))
 

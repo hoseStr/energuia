@@ -106,7 +106,9 @@ def window_thresholds(
     The score of every window of that length inside `reference`, taken every `step_hours`,
     is computed against the whole reference; the threshold is their `quantile`. With the
     default threshold of the library almost every ordinary month would count as drifted
-    (explore/11_drift_threshold.py). Needs the `monitoring` dependency group.
+    (explore/11_drift_threshold.py). Windows shorter than `step_hours` would all start on the
+    same weekday and calibrate the threshold for that weekday only. Needs the `monitoring`
+    dependency group.
     """
     from scipy.stats import wasserstein_distance
 
@@ -156,13 +158,16 @@ def write_drift(
     models_dir: Path = config.MODELS_DIR,
     site_dir: Path = config.SITE_DIR,
 ) -> DriftSummary | None:
-    """Build the drift report of the logged forecasts into `site_dir`; None if nothing is logged."""
+    """Build the drift report of the logged forecasts into `site_dir`.
+
+    Return None, and write nothing, while fewer than `config.DRIFT_MIN_DAYS` days are logged.
+    """
     history = History(
         demand=store.load_series(config.DEMAND.name, data_dir),
         generation=store.load_series(config.GENERATION.name, data_dir),
     )
     current = current_features(history, read_log(data_dir))
-    if current.empty:
+    if len(current) < config.DRIFT_MIN_DAYS * 24:
         return None
     entry = registry_entry(models_dir)
     reference = reference_features(history, entry)

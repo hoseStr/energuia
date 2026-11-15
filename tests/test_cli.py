@@ -430,11 +430,13 @@ def test_report_without_a_model_fails_cleanly(stored_history, tmp_path):
     assert "run the `train` command first" in result.output
 
 
-def test_drift_has_nothing_to_report_before_the_first_forecast(registered_model, tmp_path):
+def test_drift_has_nothing_to_report_before_a_week_of_forecasts(registered_model, tmp_path):
     result = runner.invoke(cli.app, ["drift", "--site-dir", str(tmp_path / "site")])
 
     assert result.exit_code == 0, result.output
-    assert "No drift report" in result.output
+    assert (
+        f"No drift report: it needs {config.DRIFT_MIN_DAYS} logged forecast days" in result.output
+    )
     assert not (tmp_path / "site").exists()
 
 

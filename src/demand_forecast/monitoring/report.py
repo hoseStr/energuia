@@ -111,6 +111,7 @@ def build_payload(
         "hourly": hourly,
         "days": table,
         "drift": None if drift is None else asdict(drift),
+        "drift_min_days": config.DRIFT_MIN_DAYS,
         "links": {"repo": config.REPO_URL, "api": config.API_URL, "log": config.LOG_URL},
     }
 

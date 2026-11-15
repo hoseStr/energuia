@@ -150,6 +150,7 @@ def test_an_empty_log_still_gives_a_page(tmp_path, demand):
     assert payload["hourly"] == []
     assert payload["days"] == []
     assert payload["drift"] is None
+    assert payload["drift_min_days"] == config.DRIFT_MIN_DAYS
     assert "__PAYLOAD__" not in render(payload)
 
 

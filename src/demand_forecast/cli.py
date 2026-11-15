@@ -332,7 +332,7 @@ def drift_command(
         typer.echo(f"error: {error}", err=True)
         raise typer.Exit(code=1) from error
     if summary is None:
-        typer.echo("No drift report: no forecast has been logged yet.")
+        typer.echo(f"No drift report: it needs {config.DRIFT_MIN_DAYS} logged forecast days.")
         return
     drifted = ", ".join(summary.drifted) or "none"
     typer.echo(

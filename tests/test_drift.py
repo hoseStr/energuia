@@ -206,6 +206,25 @@ def test_without_logged_forecasts_there_is_no_report(stored):
     assert not site_dir.exists()
 
 
+def test_less_than_a_week_of_forecasts_gives_no_report(stored):
+    data_dir, models_dir, site_dir = stored
+    log_days(data_dir, [f"2026-11-{number:02d}" for number in range(15, 21)])
+
+    assert write_drift(data_dir, models_dir, site_dir) is None
+    assert read_drift(site_dir) is None
+    assert not site_dir.exists()
+
+
+def test_a_week_of_forecasts_is_enough_for_a_report(stored):
+    data_dir, models_dir, site_dir = stored
+    log_days(data_dir, [f"2026-11-{number:02d}" for number in range(14, 21)])
+
+    summary = write_drift(data_dir, models_dir, site_dir)
+
+    assert summary.current_days == config.DRIFT_MIN_DAYS == 7
+    assert read_drift(site_dir) == summary
+
+
 def test_the_thresholds_are_what_ordinary_windows_of_the_reference_rarely_reach(history):
     pytest.importorskip("scipy")
     reference = reference_features(history, ENTRY)
