@@ -26,6 +26,9 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.4",
 ]
+monitoring = [
+    "evidently>=0.7.23",
+]
 notebook = [
     "ipykernel>=7.4.0",
     "matplotlib>=3.11.2",
