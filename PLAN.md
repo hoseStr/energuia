@@ -198,18 +198,27 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 ### Fase 4 — Automatización y monitoreo
 
-- [ ] `daily.yml` (cron diario; recordar que el cron de GitHub usa UTC y puede retrasarse):
+> **Ajustes al hacer la fase, el 2026-11-15** (ver `docs/decisions.md`):
+>
+> - **La bitácora es CSV**, no Parquet, para que el historial de GitHub muestre que solo crece. Aprobado por el usuario.
+> - **`data/metrics/` se reconstruye entero en cada corrida**; no se le agregan filas.
+> - **La API sirve la bitácora** y se redespliega con un deploy hook de Render al final del job diario.
+> - **El reentrenamiento no compara un modelo recién entrenado con el vigente en las últimas semanas**, porque el candidato ya vio esos días. Compara, en los días posteriores al entrenamiento del vigente, el modelo congelado contra modelos reentrenados cada semana.
+> - **El umbral de drift se calibra con el propio entrenamiento**: el de Evidently por defecto marcaría el 93 % de los meses normales.
+> - **El panel se publica como artefacto de GitHub Pages**; `site/` no se commitea.
+
+- [x] `daily.yml` (cron diario; recordar que el cron de GitHub usa UTC y puede retrasarse): *(Escrito el 2026-11-15, a las 20:17 UTC. Todavía no ha corrido en GitHub; el job completo se probó en local contra XM sobre una copia de los datos.)*
   1. Ingesta incremental de datos reales.
   2. Evaluar los pronósticos pasados cuyos datos reales ya llegaron; agregar a `data/metrics/`.
   3. Emitir el pronóstico del siguiente día objetivo y agregarlo a `data/predictions/` con versión del modelo y momento de emisión.
   4. Generar reporte de drift con Evidently (features recientes contra el periodo de entrenamiento).
   5. Regenerar el panel y publicarlo en GitHub Pages.
   6. Commit automático de datos y métricas (requiere `permissions: contents: write`).
-- [ ] **La bitácora de pronósticos es inmutable:** solo se agrega, nunca se reescribe un pronóstico ya emitido. Es la prueba de honestidad del proyecto.
-- [ ] Alerta: si el MAPE móvil de 7 días supera 1,5 veces el MAPE del backtesting, abrir un issue automáticamente.
-- [ ] `retrain.yml` (semanal): entrenar candidato, compararlo con el modelo vigente en las últimas semanas y **promoverlo solo si es mejor**; registrar la decisión en `models/registry.json` en ambos casos.
-- [ ] El job diario debe fallar con mensaje claro si XM no responde o no hay datos nuevos, sin corromper nada.
-- [ ] Verificar si GitHub desactiva los workflows programados por inactividad del repo y cómo evitarlo **(por verificar)**.
+- [x] **La bitácora de pronósticos es inmutable:** solo se agrega, nunca se reescribe un pronóstico ya emitido. Es la prueba de honestidad del proyecto. *(`serving/log.py` rechaza reescribir, rellenar huecos y registrar un pronóstico tardío; el workflow lo comprueba otra vez con `git diff` antes de commitear.)*
+- [x] Alerta: si el MAPE móvil de 7 días supera 1,5 veces el MAPE del backtesting, abrir un issue automáticamente. *(Comando `alert` y paso del workflow con `gh`. Sin probar en GitHub: la primera alerta posible es unos 13 días después del primer pronóstico.)*
+- [x] `retrain.yml` (semanal): entrenar candidato, compararlo con el modelo vigente en las últimas semanas y **promoverlo solo si es mejor**; registrar la decisión en `models/registry.json` en ambos casos. *(Comando `retrain`, con la comparación fuera de muestra descrita arriba. Todavía no ha corrido en GitHub.)*
+- [x] El job diario debe fallar con mensaje claro si XM no responde o no hay datos nuevos, sin corromper nada. *("No hay datos nuevos" se concretó como datos más viejos que el retraso habitual más 7 días.)*
+- [x] Verificar si GitHub desactiva los workflows programados por inactividad del repo y cómo evitarlo **(por verificar)**. *(Sí: en repos públicos, tras 60 días sin actividad. El commit diario del job debería evitarlo; que los commits del bot cuenten como actividad no se confirmó en la documentación oficial.)*
 
 **Aceptación:** tres días consecutivos de ejecución automática sin intervención, con el panel actualizado y la bitácora creciendo.
 

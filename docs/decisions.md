@@ -2,6 +2,84 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-15: Fase 4, automatización y monitoreo
+
+### Bitácora de pronósticos
+
+- **CSV y no Parquet: `data/predictions/<año>.csv`.** Cambia PLAN.md §3 solo para este archivo, con aprobación del usuario. En texto plano el historial de GitHub muestra, línea por línea, que cada pronóstico se escribió antes de su día y que ninguna línea vieja cambió. Pesa unos 500 KB al año.
+- **Solo se agregan líneas** (`serving/log.py`). Una fila por hora, con el momento de emisión, la versión del modelo y el último día que vio de cada serie. `append_forecast` abre el archivo en modo de agregar y rechaza:
+  - un día que ya está en la bitácora;
+  - un día anterior al último registrado (no se rellenan huecos después);
+  - un pronóstico emitido cuando su día ya había empezado.
+- **Un día sin corrida queda vacío.** Rellenarlo después sería escribir un pronóstico que nunca se emitió.
+- **Segunda comprobación en el workflow:** antes de commitear, `daily.yml` falla si `git diff` muestra alguna línea borrada o cambiada en `data/predictions/`.
+- **`.gitattributes` fuerza LF** en la bitácora y en la tabla de errores, que se escriben desde Linux.
+
+### Evaluación y alerta
+
+- **`data/metrics/daily.csv` es derivado y se reconstruye entero en cada corrida** (`monitoring/evaluate.py`), a partir de la bitácora y de la demanda procesada. PLAN.md decía "agregar"; así el error siempre corresponde a los datos más recientes de XM, que revisa días ya publicados hasta un 0,04 %. Solo entran los días con sus 24 horas publicadas.
+- **Alerta:** si el MAPE de los últimos 7 días evaluados supera 1,5 veces el del backtest del modelo vigente (hoy 2,94 %), el workflow abre un issue con la etiqueta `forecast-alert`, o comenta el que ya esté abierto. Con menos de 7 días evaluados no hay alerta.
+- **El primer día evaluado llega unos 6 días después del primer pronóstico**, por el retraso de XM, y la primera alerta posible unos 13 días después.
+
+### Job diario
+
+- **Un solo comando, `daily`** (`pipeline.py`): ingesta, reconstrucción de los errores y registro del pronóstico de mañana. Correrlo dos veces el mismo día no cambia la bitácora.
+- **Falla sin registrar un pronóstico** si XM no responde (no se escribe nada), si no hay modelo registrado o si los datos están demasiado viejos.
+- **Tolerancia de atraso: 7 días sobre el retraso habitual** (`MAX_EXTRA_LAG_DAYS`), es decir, demanda de hasta D−12 y generación de hasta D−10. Medido en la ventana de selección con `explore/10_stale_data.py`, simulando que XM lleva varios días sin publicar (MAPE en %):
+
+  | Días de atraso | Demanda hasta | Ingenuo estacional | Promedio de 4 semanas | LightGBM |
+  |---|---|---|---|---|
+  | 0 | D−5 | 3,40 | 3,43 | 2,09 |
+  | 1 | D−6 | 3,40 | 3,43 | 2,13 |
+  | 2 | D−7 | 3,91 | 3,69 | 2,30 |
+  | 3 | D−8 | 3,91 | 3,69 | 2,32 |
+  | 5 | D−10 | 3,91 | 3,69 | 2,38 |
+  | 7 | D−12 | 3,91 | 3,69 | 2,46 |
+  | 10 | D−15 | 4,20 | 3,72 | 2,62 |
+
+  Con una semana de atraso el modelo (2,46 %) sigue por debajo del mejor baseline con datos al día (3,40 %). Siete días cubren un atraso por fin de semana y festivos como Semana Santa; más allá, el job falla y avisa. El número lo propuso Claude con esta tabla; el usuario puede cambiarlo.
+- **Hora del cron: 20:17 UTC (15:17 en Bogotá).** Deja cuatro horas después de las 11:00, que es la única medición diurna de publicación de XM, y casi nueve antes de la medianoche. Si GitHub arranca la corrida después de la medianoche de Bogotá, ese día objetivo se queda sin pronóstico.
+
+### API
+
+- **La API ya no calcula: sirve la bitácora.** `/forecast` devuelve el último pronóstico registrado tal como se emitió, y 503 mientras la bitácora esté vacía. `/metrics` agrega el error real (`live`) al backtest. `/health` dice el último día pronosticado y el último evaluado. Así no puede haber dos versiones del pronóstico de un día.
+- **La imagen incluye `data/` sin `raw/`** (datos procesados, bitácora y errores). El servicio muestra lo que había al construirse, así que el job diario pide a Render un despliegue nuevo con un deploy hook guardado en el secreto `RENDER_DEPLOY_HOOK_URL`. Sin ese secreto el paso avisa y sigue.
+- **Los commits del job no disparan CI** (GitHub no lanza workflows por pushes hechos con `GITHUB_TOKEN`), así que `autoDeployTrigger: checksPass` no basta para redesplegar; por eso el deploy hook.
+- **El paso de CI que consulta `/forecast` acepta 200 o 503**, porque la imagen se construye con la bitácora del repo, que empieza vacía.
+
+### Drift
+
+- **Evidently 0.7.23 en el grupo `monitoring`**, aprobado por el usuario. Funciona con pandas 3. Agrega 35 paquetes al lock; solo lo instalan el job diario y CI, nunca la imagen de la API.
+- **Qué se compara:** las features de los últimos 28 pronósticos registrados, reconstruidas con los cortes escritos en la bitácora (lo que vio el modelo), contra las del periodo de entrenamiento del modelo vigente.
+- **Solo las 10 features de carga.** Las de calendario (hora, día de la semana, día del año, festivos) y los conteos de la ventana difieren por construcción entre unas semanas y diez años, y saldrían siempre con drift.
+- **El umbral por defecto de Evidently no sirve aquí.** Con 0,1 de distancia de Wasserstein normalizada, el 92,8 % de las ventanas de 28 días del propio entrenamiento saldría con drift (`explore/11_drift_threshold.py`). Una alarma que siempre suena no avisa de nada.
+- **Umbral calibrado por feature:** una feature tiene drift cuando su distancia al entrenamiento supera la del 99 % de las ventanas del mismo tamaño dentro del entrenamiento (`DRIFT_QUANTILE`). Se calcula en cada corrida y tarda unos 50 segundos. Un test comprueba que la distancia calculada es la misma que reporta Evidently.
+- **Comprobado con datos reales:** en un periodo normal (28 días hasta el 2026-11-15) ninguna feature queda marcada, ni con un solo día registrado ni con 28.
+- El paso de drift del workflow no detiene lo demás: si falla, el panel se publica igual.
+
+### Panel
+
+- **Una página estática** (`monitoring/report.py` y `monitoring/panel.html`), sin librerías externas: los datos van como JSON dentro del HTML y un script propio dibuja dos gráficas en SVG. Se publica en GitHub Pages como artefacto del workflow; `site/` no se commitea.
+- **Contenido:** cuatro cifras (MAPE real, MAPE de los últimos 7 días evaluados con su estado, MAPE del backtest y último pronóstico), pronóstico contra real por hora de los últimos 21 días registrados, error de cada día evaluado con su media acumulada, tabla de días, resumen del drift y enlaces al código, la API y la bitácora.
+- **En inglés**, como la API, porque es lo que ve un reclutador. Lo decidió Claude; cambiarlo es editar los textos de `panel.html`.
+- **Estados vacíos:** la página se ve bien sin pronósticos, con un solo pronóstico y sin días evaluados, que es como estará los primeros 6 días.
+- Colores validados para daltonismo y contraste en modo claro y oscuro. La vista previa se revisó con capturas en ambos modos.
+
+### Reentrenamiento
+
+- **`retrain.yml`, domingos a las 12:17 UTC**, con el comando `retrain` (`models/promote.py`).
+- **Comparar un modelo recién entrenado con el vigente en las últimas semanas tendría fuga:** el candidato ya vio esos días. PLAN.md lo pedía así; se cambió por una comparación fuera de muestra.
+- **Qué se compara:** en los días publicados después del entrenamiento del modelo vigente, el vigente congelado contra modelos reentrenados cada 7 días con lo publicado en su momento, que es lo que habría producido una rutina de reentrenamiento. Ninguno de los dos lados vio los días que pronostica.
+- **Se promueve solo con 28 días de evidencia o más** (`RETRAIN_MIN_DAYS`) y si los reentrenados tuvieron menor MAPE. Entonces se entrena con todo lo publicado y se registra como vigente. Con el primer modelo, del 2026-11-13, la primera promoción posible es hacia mediados de diciembre.
+- **La decisión se guarda siempre** en `models/registry.json`, en la lista `decisions`: ventana, días, MAPE de cada lado, si se promovió y por qué.
+- El reentrenamiento del workflow no usa MLflow, que es solo de desarrollo.
+
+### Pendiente de comprobar
+
+- **Nada de esto ha corrido todavía en GitHub.** Los 316 tests pasan en Windows y el job completo (`daily`, `alert`, `drift`, `report`, `retrain`) se probó contra XM sobre una copia de los datos. La prueba en un contenedor Linux no terminó: el equipo se quedó sin memoria. Tampoco se reconstruyó la imagen de Docker con el `Dockerfile` nuevo; lo hará CI en el primer push.
+- **Workflows programados:** según la documentación de GitHub, en un repo público se desactivan tras 60 días sin actividad. El job commitea a diario, lo que debería contar como actividad; que los commits del bot cuenten no se confirmó en la documentación oficial.
+- **Criterio de aceptación:** tres días seguidos de ejecución automática. Empieza a contar con la primera corrida.
+
 ## 2026-11-14: Fase 3, servicio y CI
 
 ### Emisión del pronóstico
