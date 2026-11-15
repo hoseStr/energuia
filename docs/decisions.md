@@ -54,7 +54,18 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 - **Solo las 10 features de carga.** Las de calendario (hora, día de la semana, día del año, festivos) y los conteos de la ventana difieren por construcción entre unas semanas y diez años, y saldrían siempre con drift.
 - **El umbral por defecto de Evidently no sirve aquí.** Con 0,1 de distancia de Wasserstein normalizada, el 92,8 % de las ventanas de 28 días del propio entrenamiento saldría con drift (`explore/11_drift_threshold.py`). Una alarma que siempre suena no avisa de nada.
 - **Umbral calibrado por feature:** una feature tiene drift cuando su distancia al entrenamiento supera la del 99 % de las ventanas del mismo tamaño dentro del entrenamiento (`DRIFT_QUANTILE`). Se calcula en cada corrida y tarda unos 50 segundos. Un test comprueba que la distancia calculada es la misma que reporta Evidently.
-- **Comprobado con datos reales:** en un periodo normal (28 días hasta el 2026-11-15) ninguna feature queda marcada, ni con un solo día registrado ni con 28.
+- **Comprobado con datos reales:** en un periodo normal (28 días hasta el 2026-11-15) ninguna feature queda marcada con 28 días registrados.
+- **No hay informe de drift con menos de 7 días en la bitácora** (`DRIFT_MIN_DAYS`). La primera corrida en GitHub, con un solo día registrado (el festivo del 16 de noviembre), marcó `profile_shape` con 0,83 contra un umbral de 0,81. Era una falsa alarma de la calibración: las ventanas de referencia se toman cada 7 días, así que las de menos de una semana empiezan todas el mismo día de la semana (miércoles, con el modelo actual) y el umbral solo conoce ese día. Medido en los dos últimos años del entrenamiento (`explore/12_short_drift_windows.py`):
+
+  | Ventana | Ventanas normales con alguna feature marcada | Peor día de inicio |
+  |---|---|---|
+  | 1 día | 8,8 % | domingo, 37 % |
+  | 2 días | 19,8 % | sábado, 96 % |
+  | 3 días | 6,5 % | sábado, 21 % |
+  | 7 días | 1,7 % | 3 % |
+  | 28 días | 2,4 % | 4 % |
+
+  Desde 7 días la ventana cubre todos los días de la semana y la tasa no depende de cuándo empieza. La prueba anterior con un solo día registrado (un domingo, sin features marcadas) no bastaba para ver el problema. Mientras faltan días, el panel dice cuántos se necesitan.
 - El paso de drift del workflow no detiene lo demás: si falla, el panel se publica igual.
 
 ### Panel
@@ -76,7 +87,8 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 
 ### Pendiente de comprobar
 
-- **Nada de esto ha corrido todavía en GitHub.** Los 316 tests pasan en Windows y el job completo (`daily`, `alert`, `drift`, `report`, `retrain`) se probó contra XM sobre una copia de los datos. La prueba en un contenedor Linux no terminó: el equipo se quedó sin memoria. Tampoco se reconstruyó la imagen de Docker con el `Dockerfile` nuevo; lo hará CI en el primer push.
+- **Primera corrida en GitHub, el 2026-11-15:** CI pasó en `09025ed` (tests en Linux e imagen de Docker, que no se habían podido probar en local por falta de memoria). El job diario, lanzado a mano a las 12:04 de Bogotá, registró el pronóstico del 16 de noviembre, publicó el panel en https://hosestr.github.io/energuia/ y redesplegó la API, que ya sirve ese pronóstico.
+- **Lo que aún no se ha visto correr:** el cron (la única corrida fue manual), la evaluación contra el dato real (el 16 se publica hacia el 21 de noviembre), `retrain.yml` (primer domingo: 22 de noviembre) y la apertura del issue de alerta.
 - **Workflows programados:** según la documentación de GitHub, en un repo público se desactivan tras 60 días sin actividad. El job commitea a diario, lo que debería contar como actividad; que los commits del bot cuenten no se confirmó en la documentación oficial.
 - **Criterio de aceptación:** tres días seguidos de ejecución automática. Empieza a contar con la primera corrida.
 
