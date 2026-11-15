@@ -93,18 +93,30 @@ def register_model(
 
     models_dir.mkdir(parents=True, exist_ok=True)
     (models_dir / file_name).write_text(text, encoding="utf-8", newline="\n")
+    _write_registry(registry, models_dir)
+    return entry
+
+
+def _write_registry(registry: dict[str, object], models_dir: Path) -> None:
+    models_dir.mkdir(parents=True, exist_ok=True)
     temporary = models_dir / f"{REGISTRY_NAME}.tmp"
     temporary.write_text(
         json.dumps(registry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
     )
     temporary.replace(models_dir / REGISTRY_NAME)
-    return entry
 
 
-def load_model(
+def record_decision(decision: dict[str, object], models_dir: Path = config.MODELS_DIR) -> None:
+    """Append a retraining decision to the registry, whether or not a model was promoted."""
+    registry = read_registry(models_dir)
+    registry.setdefault("decisions", []).append(decision)
+    _write_registry(registry, models_dir)
+
+
+def registry_entry(
     models_dir: Path = config.MODELS_DIR, version: str | None = None
-) -> tuple[LightGBMForecaster, dict[str, object]]:
-    """Return a registered model, the current one by default, and its registry entry."""
+) -> dict[str, object]:
+    """Return the registry entry of a model, the current one by default, without loading it."""
     registry = read_registry(models_dir)
     version = version or registry["current"]
     if version is None:
@@ -113,6 +125,15 @@ def load_model(
     if not entries:
         raise RegistryError(f"version {version} is not in the registry")
     (entry,) = entries
+    return entry
+
+
+def load_model(
+    models_dir: Path = config.MODELS_DIR, version: str | None = None
+) -> tuple[LightGBMForecaster, dict[str, object]]:
+    """Return a registered model, the current one by default, and its registry entry."""
+    entry = registry_entry(models_dir, version)
+    version = entry["version"]
 
     path = models_dir / entry["file"]
     if not path.exists():

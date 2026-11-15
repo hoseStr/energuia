@@ -9,8 +9,12 @@ from demand_forecast.data import store
 from demand_forecast.data.ingest import ingest
 from demand_forecast.data.xm_client import XMUnavailableError
 from demand_forecast.models.backtest import History
+from demand_forecast.models.promote import Comparison
 from demand_forecast.models.registry import load_model, read_registry, register_model
 from demand_forecast.models.train import LightGBMForecaster
+from demand_forecast.monitoring.drift import DriftSummary
+from demand_forecast.monitoring.evaluate import write_metrics
+from demand_forecast.serving.log import read_log
 
 runner = CliRunner()
 
@@ -220,7 +224,16 @@ def registered_model(stored_history) -> str:
         model,
         trained_at=datetime(2026, 11, 11, 16, 30, 5, tzinfo=UTC),
         data={"fingerprint": "0123456789abcdef"},
-        backtest={"start": "2025-11-01", "end": "2026-10-31", "folds": 12, "metrics": {}},
+        backtest={
+            "start": "2025-11-01",
+            "end": "2026-10-31",
+            "folds": 12,
+            "metrics": {
+                "seasonal-naive": {"mae": 340000.0, "mape": 3.4},
+                "moving-average": {"mae": 300000.0, "mape": 3.0},
+                "lightgbm": {"mae": 200000.0, "mape": 2.0},
+            },
+        },
         commit={"commit": "abc123", "dirty": False},
         models_dir=config.MODELS_DIR,
     )
@@ -295,3 +308,241 @@ def test_serve_without_a_model_does_not_start(stored_history, served):
     assert result.exit_code == 1
     assert "run the `train` command first" in result.output
     assert served == []
+
+
+def at(text: str, monkeypatch) -> None:
+    now = pd.Timestamp(text, tz=config.TIMEZONE)
+    monkeypatch.setattr(cli, "bogota_now", lambda: now)
+
+
+def test_daily_ingests_and_logs_the_forecast_for_tomorrow(registered_model, monkeypatch):
+    at("2026-11-10 15:17", monkeypatch)
+
+    result = runner.invoke(cli.app, ["daily"])
+
+    assert result.exit_code == 0, result.output
+    assert "last_complete_day" in result.output
+    assert "Evaluated days: 0" in result.output
+    assert "Logged the forecast for 2026-11-11" in result.output
+    assert f"model {registered_model}" in result.output
+    log = read_log(config.DATA_DIR)
+    assert len(log) == 24
+    assert set(log["target_day"]) == {pd.Timestamp("2026-11-11", tz=config.TIMEZONE)}
+
+
+def test_daily_twice_on_the_same_day_logs_once(registered_model, monkeypatch):
+    at("2026-11-10 15:17", monkeypatch)
+    runner.invoke(cli.app, ["daily"])
+    at("2026-11-10 20:00", monkeypatch)
+
+    result = runner.invoke(cli.app, ["daily"])
+
+    assert result.exit_code == 0, result.output
+    assert "The forecast for 2026-11-11 was already logged at 2026-11-10 15:17" in result.output
+    assert len(read_log(config.DATA_DIR)) == 24
+
+
+def test_daily_fails_with_a_clear_message_when_xm_is_down(registered_model, monkeypatch):
+    at("2026-11-10 15:17", monkeypatch)
+    monkeypatch.setattr(FakeXM, "table", None)
+
+    result = runner.invoke(cli.app, ["daily"])
+
+    assert result.exit_code == 1
+    assert "error: XM did not answer" in result.output
+    assert read_log(config.DATA_DIR).empty
+
+
+def test_daily_refuses_to_forecast_with_old_data(registered_model, monkeypatch):
+    at("2026-11-25 15:17", monkeypatch)
+
+    result = runner.invoke(cli.app, ["daily"])
+
+    assert result.exit_code == 1
+    assert "error: the demand is published up to 2026-11-06" in result.output
+    assert read_log(config.DATA_DIR).empty
+
+
+def evaluated_days(mape: float, days: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "target_day": pd.date_range("2026-11-01", periods=days, freq="D", tz=config.TIMEZONE),
+            "day_type": "workday",
+            "model_version": "20261111T163005Z",
+            "actual_kwh": 2.4e8,
+            "predicted_kwh": 2.4e8,
+            "mae_kwh": 2e5,
+            "mape_percent": mape,
+        }
+    )
+
+
+def test_alert_writes_the_warning_when_the_recent_error_is_too_high(registered_model, tmp_path):
+    write_metrics(evaluated_days(mape=3.5, days=7), config.DATA_DIR)
+    output = tmp_path / "alert.md"
+
+    result = runner.invoke(cli.app, ["alert", "--output", str(output)])
+
+    assert result.exit_code == 0, result.output
+    assert "3.50 %" in output.read_text(encoding="utf-8")
+    assert "above the alert threshold of 3.00 %" in result.output
+
+
+def test_alert_writes_nothing_when_the_error_is_normal(registered_model, tmp_path):
+    write_metrics(evaluated_days(mape=2.1, days=7), config.DATA_DIR)
+    output = tmp_path / "alert.md"
+
+    result = runner.invoke(cli.app, ["alert", "--output", str(output)])
+
+    assert result.exit_code == 0, result.output
+    assert "No alert" in result.output
+    assert "2.10 %" in result.output
+    assert not output.exists()
+
+
+def test_alert_waits_for_seven_evaluated_days(registered_model, tmp_path):
+    write_metrics(evaluated_days(mape=9.0, days=6), config.DATA_DIR)
+    output = tmp_path / "alert.md"
+
+    result = runner.invoke(cli.app, ["alert", "--output", str(output)])
+
+    assert result.exit_code == 0, result.output
+    assert "No alert: only 6 evaluated days" in result.output
+    assert not output.exists()
+
+
+def test_report_builds_the_panel(registered_model, monkeypatch, tmp_path):
+    at("2026-11-10 15:17", monkeypatch)
+    runner.invoke(cli.app, ["daily"])
+    site_dir = tmp_path / "site"
+
+    result = runner.invoke(cli.app, ["report", "--site-dir", str(site_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert "index.html" in result.output
+    page = (site_dir / "index.html").read_text(encoding="utf-8")
+    assert "2026-11-11T00:00:00-05:00" in page
+
+
+def test_report_without_a_model_fails_cleanly(stored_history, tmp_path):
+    result = runner.invoke(cli.app, ["report", "--site-dir", str(tmp_path / "site")])
+    assert result.exit_code == 1
+    assert "run the `train` command first" in result.output
+
+
+def test_drift_has_nothing_to_report_before_the_first_forecast(registered_model, tmp_path):
+    result = runner.invoke(cli.app, ["drift", "--site-dir", str(tmp_path / "site")])
+
+    assert result.exit_code == 0, result.output
+    assert "No drift report" in result.output
+    assert not (tmp_path / "site").exists()
+
+
+def test_drift_says_which_features_drifted(registered_model, monkeypatch, tmp_path):
+    summary = DriftSummary(
+        model_version=registered_model,
+        reference_start="2025-08-04",
+        reference_end="2026-11-06",
+        current_start="2026-11-11",
+        current_end="2026-11-20",
+        current_days=10,
+        method="Wasserstein distance (normed)",
+        quantile=0.99,
+        thresholds={"week_level": 0.25, "profile_shape": 0.1},
+        scores={"week_level": 0.31, "profile_shape": 0.02},
+        drifted=["week_level"],
+    )
+    seen = []
+    monkeypatch.setattr(cli, "write_drift", lambda *args: seen.append(args) or summary)
+    site_dir = tmp_path / "site"
+
+    result = runner.invoke(cli.app, ["drift", "--site-dir", str(site_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert "Drift over 10 logged days (2026-11-11 to 2026-11-20)" in result.output
+    assert "1 of 2 features drifted (week_level)" in result.output
+    assert seen == [(config.DATA_DIR, config.MODELS_DIR, site_dir)]
+
+
+def test_drift_asks_for_the_monitoring_group_when_evidently_is_missing(
+    registered_model, monkeypatch, tmp_path
+):
+    def missing(*args):
+        raise ImportError("No module named 'evidently'")
+
+    monkeypatch.setattr(cli, "write_drift", missing)
+
+    result = runner.invoke(cli.app, ["drift", "--site-dir", str(tmp_path / "site")])
+
+    assert result.exit_code == 1
+    assert "uv sync --group monitoring" in result.output
+
+
+def test_retrain_keeps_the_model_until_enough_days_are_published(registered_model):
+    result = runner.invoke(cli.app, ["retrain"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Kept model {registered_model}" in result.output
+    assert f"of the {config.RETRAIN_MIN_DAYS} days needed" in result.output
+    registry = read_registry(config.MODELS_DIR)
+    assert registry["current"] == registered_model
+    assert len(registry["models"]) == 1
+    (decision,) = registry["decisions"]
+    assert decision["promoted"] is False
+    assert decision["current_version"] == registered_model
+    assert decision["days"] == 0
+    assert decision["new_version"] is None
+
+
+def test_retrain_promotes_when_retraining_beat_the_current_model(
+    registered_model, two_month_windows, monkeypatch
+):
+    comparison = Comparison(
+        start=pd.Timestamp("2026-10-01", tz=config.TIMEZONE),
+        end=pd.Timestamp("2026-11-06", tz=config.TIMEZONE),
+        days=37,
+        champion_mape=2.4,
+        challenger_mape=2.1,
+    )
+    monkeypatch.setattr(cli, "compare", lambda *args, **kwargs: comparison)
+
+    result = runner.invoke(cli.app, ["retrain"])
+
+    assert result.exit_code == 0, result.output
+    assert "Promoted a retrained model" in result.output
+    assert "MAPE 2.40 % for the current model and 2.10 %" in result.output
+    registry = read_registry(config.MODELS_DIR)
+    assert registry["current"] != registered_model
+    assert len(registry["models"]) == 2
+    (decision,) = registry["decisions"]
+    assert decision["promoted"] is True
+    assert decision["new_version"] == registry["current"]
+    assert decision["current_mape"] == 2.4
+    assert decision["retrained_mape"] == 2.1
+    assert decision["window_start"] == "2026-10-01"
+    assert decision["window_end"] == "2026-11-06"
+
+
+def test_retrain_records_that_the_current_model_was_kept(registered_model, monkeypatch):
+    comparison = Comparison(
+        start=pd.Timestamp("2026-10-01", tz=config.TIMEZONE),
+        end=pd.Timestamp("2026-11-06", tz=config.TIMEZONE),
+        days=37,
+        champion_mape=2.0,
+        challenger_mape=2.1,
+    )
+    monkeypatch.setattr(cli, "compare", lambda *args, **kwargs: comparison)
+
+    result = runner.invoke(cli.app, ["retrain"])
+
+    assert result.exit_code == 0, result.output
+    assert f"Kept model {registered_model}: the current model was at least as good" in result.output
+    registry = read_registry(config.MODELS_DIR)
+    assert registry["current"] == registered_model
+    assert registry["decisions"][0]["promoted"] is False
+
+
+def test_retrain_without_a_model_fails_cleanly(stored_history):
+    result = runner.invoke(cli.app, ["retrain"])
+    assert result.exit_code == 1
+    assert "run the `train` command first" in result.output

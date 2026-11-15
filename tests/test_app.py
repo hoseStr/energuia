@@ -1,21 +1,21 @@
-from datetime import UTC, datetime
+import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
 from demand_forecast import config
-from demand_forecast.data import store, transform
-from demand_forecast.models.backtest import History
-from demand_forecast.models.registry import RegistryError, register_model
-from demand_forecast.models.train import LightGBMForecaster
+from demand_forecast.models.registry import RegistryError
+from demand_forecast.monitoring.evaluate import write_metrics
 from demand_forecast.serving.app import create_app
-from demand_forecast.serving.forecast import issue_forecast
+from demand_forecast.serving.forecast import Forecast
+from demand_forecast.serving.log import append_forecast
 
 BOGOTA = config.TIMEZONE
-NOW = pd.Timestamp("2026-11-14 18:08", tz=BOGOTA)
-VERSION = "20261113T163005Z"
+CURRENT = "20261120T160000Z"
+EARLIER = "20261113T163005Z"
 BACKTEST = {
     "start": "2025-11-01",
     "end": "2026-10-31",
@@ -28,148 +28,167 @@ BACKTEST = {
 }
 
 
-class Clock:
-    """A clock the tests can move."""
-
-    def __init__(self, now: pd.Timestamp) -> None:
-        self.now = now
-
-    def __call__(self) -> pd.Timestamp:
-        return self.now
+def day(text: str) -> pd.Timestamp:
+    return pd.Timestamp(text, tz=BOGOTA)
 
 
-def write_data(data_dir: Path, make_wide) -> History:
-    """Store synthetic demand up to 2026-11-08 and generation up to 2026-11-10."""
-    for name, days in ((config.DEMAND.name, 496), (config.GENERATION.name, 498)):
-        table = transform.hourly_table(make_wide("2025-07-01", days))
-        store.write_table(table, store.processed_dir(name, data_dir), "timestamp")
-    return History(
-        demand=store.load_series(config.DEMAND.name, data_dir),
-        generation=store.load_series(config.GENERATION.name, data_dir),
+def write_registry(models_dir: Path) -> None:
+    models_dir.mkdir(parents=True)
+    entries = [{"version": version, "backtest": BACKTEST} for version in (EARLIER, CURRENT)]
+    registry = {"current": CURRENT, "models": entries}
+    (models_dir / "registry.json").write_text(json.dumps(registry), encoding="utf-8")
+
+
+def log_forecast(data_dir: Path, target: str, issued: str, level: float) -> Forecast:
+    target_day = day(target)
+    forecast = Forecast(
+        issued_at=day(issued),
+        target_day=target_day,
+        model_version=EARLIER,
+        demand_last_day=target_day - pd.Timedelta(days=7),
+        generation_last_day=target_day - pd.Timedelta(days=5),
+        values=pd.Series(
+            level + np.arange(24) * 1000.0, index=pd.date_range(target_day, periods=24, freq="h")
+        ),
     )
+    append_forecast(forecast, data_dir)
+    return forecast
 
 
-def write_model(models_dir: Path, history: History) -> LightGBMForecaster:
-    model = LightGBMForecaster(rounds=10, train_years=1)
-    model.fit(history)
-    register_model(
-        model,
-        trained_at=datetime(2026, 11, 13, 16, 30, 5, tzinfo=UTC),
-        data={"fingerprint": "0123456789abcdef"},
-        backtest=BACKTEST,
-        commit={"commit": "abc123", "dirty": False},
-        models_dir=models_dir,
+def write_evaluated_days(data_dir: Path, mapes: list[float]) -> None:
+    daily = pd.DataFrame(
+        {
+            "target_day": pd.date_range(day("2026-11-15"), periods=len(mapes), freq="D"),
+            "day_type": "workday",
+            "model_version": EARLIER,
+            "actual_kwh": 2.4e8,
+            "predicted_kwh": 2.4e8,
+            "mae_kwh": [100000.0 * mape for mape in mapes],
+            "mape_percent": mapes,
+        }
     )
-    return model
+    write_metrics(daily, data_dir)
 
 
 @pytest.fixture
-def clock() -> Clock:
-    return Clock(NOW)
+def dirs(tmp_path) -> tuple[Path, Path]:
+    write_registry(tmp_path / "models")
+    return tmp_path / "data", tmp_path / "models"
 
 
-@pytest.fixture
-def history(tmp_path, make_wide) -> History:
-    return write_data(tmp_path / "data", make_wide)
+def client_of(dirs) -> TestClient:
+    return TestClient(create_app(*dirs))
 
 
-@pytest.fixture
-def model(tmp_path, history) -> LightGBMForecaster:
-    return write_model(tmp_path / "models", history)
+def test_forecast_returns_the_latest_logged_forecast_as_it_was_issued(dirs):
+    data_dir, _ = dirs
+    log_forecast(data_dir, "2026-11-15", "2026-11-14 15:17:42", level=9e6)
+    log_forecast(data_dir, "2026-11-16", "2026-11-15 15:20:05", level=1e7)
 
-
-@pytest.fixture
-def client(tmp_path, model, clock) -> TestClient:
-    return TestClient(create_app(tmp_path / "data", tmp_path / "models", clock=clock))
-
-
-def test_health_says_which_model_and_data_the_service_holds(client):
-    response = client.get("/health")
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "status": "ok",
-        "model_version": VERSION,
-        "demand_last_day": "2026-11-08",
-        "generation_last_day": "2026-11-10",
-    }
-
-
-def test_forecast_returns_the_24_hours_of_tomorrow(client, model, history):
-    response = client.get("/forecast")
+    response = client_of(dirs).get("/forecast")
 
     assert response.status_code == 200
     body = response.json()
     hours = body.pop("hours")
     assert body == {
-        "target_day": "2026-11-15",
-        "issued_at": "2026-11-14T18:08:00-05:00",
-        "model_version": VERSION,
-        "demand_last_day": "2026-11-08",
-        "generation_last_day": "2026-11-10",
+        "target_day": "2026-11-16",
+        "issued_at": "2026-11-15T15:20:05-05:00",
+        "model_version": EARLIER,
+        "demand_last_day": "2026-11-09",
+        "generation_last_day": "2026-11-11",
         "timezone": BOGOTA,
         "unit": "kWh",
     }
     assert len(hours) == 24
-    assert hours[0]["timestamp"] == "2026-11-15T00:00:00-05:00"
-    assert hours[23]["timestamp"] == "2026-11-15T23:00:00-05:00"
-    expected = issue_forecast(model, VERSION, history, now=NOW).values
-    assert [hour["demand_kwh"] for hour in hours] == pytest.approx(list(expected))
+    assert hours[0] == {"timestamp": "2026-11-16T00:00:00-05:00", "demand_kwh": 1e7}
+    assert hours[23] == {"timestamp": "2026-11-16T23:00:00-05:00", "demand_kwh": 1e7 + 23000}
 
 
-def test_forecast_follows_the_clock(client, clock):
-    clock.now = pd.Timestamp("2026-11-15 00:30", tz=BOGOTA)
-
-    body = client.get("/forecast").json()
-
-    assert body["target_day"] == "2026-11-16"
-    assert body["issued_at"] == "2026-11-15T00:30:00-05:00"
-    assert body["hours"][0]["timestamp"] == "2026-11-16T00:00:00-05:00"
-
-
-def test_forecast_uses_the_bogota_date_when_the_server_clock_is_utc(client, clock):
-    clock.now = pd.Timestamp("2026-11-15 02:00", tz="UTC")
-
-    body = client.get("/forecast").json()
-
-    assert body["target_day"] == "2026-11-15"
-    assert body["issued_at"] == "2026-11-14T21:00:00-05:00"
-
-
-def test_forecast_is_unavailable_when_the_data_cannot_back_it(client, clock):
-    clock.now = pd.Timestamp("2026-11-10 09:00", tz=BOGOTA)
-
-    response = client.get("/forecast")
+def test_forecast_is_unavailable_until_the_first_one_is_logged(dirs):
+    response = client_of(dirs).get("/forecast")
 
     assert response.status_code == 503
-    assert "2026-11-10 was not over" in response.json()["detail"]
+    assert response.json() == {"detail": "no forecast has been issued yet"}
 
 
-def test_metrics_returns_the_backtest_behind_the_current_model(client):
-    response = client.get("/metrics")
+def test_health_says_which_model_and_days_the_service_holds(dirs):
+    data_dir, _ = dirs
+    log_forecast(data_dir, "2026-11-22", "2026-11-21 15:17", level=9e6)
+    write_evaluated_days(data_dir, [2.0, 3.0])
+
+    response = client_of(dirs).get("/health")
 
     assert response.status_code == 200
     assert response.json() == {
-        "model_version": VERSION,
-        "backtest": {
-            "start": "2025-11-01",
-            "end": "2026-10-31",
-            "folds": 12,
-            "models": [
-                {"model": "seasonal-naive", "mae_kwh": 338628.444, "mape_percent": 3.4025},
-                {"model": "moving-average", "mae_kwh": 300503.5935, "mape_percent": 3.034},
-                {"model": "lightgbm", "mae_kwh": 194519.7729, "mape_percent": 1.9585},
-            ],
-        },
+        "status": "ok",
+        "model_version": CURRENT,
+        "last_forecast_day": "2026-11-22",
+        "last_evaluated_day": "2026-11-16",
     }
 
 
-def test_the_api_documents_its_three_endpoints(client):
-    paths = client.get("/openapi.json").json()["paths"]
+def test_health_is_ok_before_anything_is_logged(dirs):
+    assert client_of(dirs).get("/health").json() == {
+        "status": "ok",
+        "model_version": CURRENT,
+        "last_forecast_day": None,
+        "last_evaluated_day": None,
+    }
+
+
+def test_metrics_returns_the_backtest_and_the_live_error(dirs):
+    data_dir, _ = dirs
+    write_evaluated_days(data_dir, [9.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0])
+
+    response = client_of(dirs).get("/metrics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["model_version"] == CURRENT
+    assert body["backtest"] == {
+        "start": "2025-11-01",
+        "end": "2026-10-31",
+        "folds": 12,
+        "models": [
+            {"model": "seasonal-naive", "mae_kwh": 338628.444, "mape_percent": 3.4025},
+            {"model": "moving-average", "mae_kwh": 300503.5935, "mape_percent": 3.034},
+            {"model": "lightgbm", "mae_kwh": 194519.7729, "mape_percent": 1.9585},
+        ],
+    }
+    assert body["live"] == {
+        "evaluated_days": 8,
+        "first_day": "2026-11-15",
+        "last_day": "2026-11-22",
+        "mae_kwh": pytest.approx(462500.0),
+        "mape_percent": pytest.approx(4.625),
+        "recent_days": 7,
+        "recent_mape_percent": pytest.approx(4.0),
+    }
+
+
+def test_the_recent_error_waits_for_seven_evaluated_days(dirs):
+    data_dir, _ = dirs
+    write_evaluated_days(data_dir, [2.0, 3.0])
+
+    live = client_of(dirs).get("/metrics").json()["live"]
+
+    assert live["evaluated_days"] == 2
+    assert live["mape_percent"] == pytest.approx(2.5)
+    assert live["recent_mape_percent"] is None
+
+
+def test_there_is_no_live_error_before_the_first_evaluation(dirs):
+    assert client_of(dirs).get("/metrics").json()["live"] is None
+
+
+def test_the_api_documents_its_three_endpoints(dirs):
+    paths = client_of(dirs).get("/openapi.json").json()["paths"]
     assert set(paths) == {"/health", "/forecast", "/metrics"}
 
 
-def test_the_bare_address_leads_to_the_documentation(client):
+def test_the_bare_address_leads_to_the_documentation(dirs):
+    client = client_of(dirs)
+
     response = client.get("/", follow_redirects=False)
 
     assert response.status_code == 307
@@ -177,14 +196,6 @@ def test_the_bare_address_leads_to_the_documentation(client):
     assert client.get("/docs").status_code == 200
 
 
-def test_the_service_does_not_start_without_a_model(tmp_path, history):
+def test_the_service_does_not_start_without_a_model(tmp_path):
     with pytest.raises(RegistryError, match="run the `train` command first"):
-        create_app(tmp_path / "data", tmp_path / "models")
-
-
-def test_the_service_does_not_start_without_data(tmp_path, make_wide):
-    elsewhere = tmp_path / "elsewhere"
-    write_model(tmp_path / "models", write_data(elsewhere, make_wide))
-
-    with pytest.raises(FileNotFoundError, match="run the `ingest` command first"):
         create_app(tmp_path / "data", tmp_path / "models")

@@ -92,6 +92,36 @@ MLFLOW_EXPERIMENT = "demand-forecast"
 API_HOST = "127.0.0.1"
 API_PORT = 8000
 
+# --- Daily job ---
+# Days beyond the usual publication lag that the data can be late and still back a forecast.
+# A week late, the model still beats both baselines on fresh data (docs/decisions.md).
+MAX_EXTRA_LAG_DAYS = 7
+
+# --- Retraining ---
+# A retrained model is only promoted on the evidence of this many published days after the
+# training of the current one, against models refitted every `RETRAIN_REFIT_DAYS` days.
+RETRAIN_MIN_DAYS = 28
+RETRAIN_REFIT_DAYS = 7
+
+# --- Monitoring ---
+# An alert fires when the MAPE of the last evaluated days exceeds this many times the backtest's.
+ALERT_WINDOW_DAYS = 7
+ALERT_MAPE_FACTOR = 1.5
+
+# Drift report: the last logged forecasts against the training period of the current model.
+DRIFT_WINDOW_DAYS = 28
+# A feature drifted when its distance to the reference exceeds what this share of the windows
+# of the same length inside the reference showed (docs/decisions.md).
+DRIFT_QUANTILE = 0.99
+# Generated site (panel and drift report); published to GitHub Pages, never committed.
+SITE_DIR = Path(os.environ.get("DEMAND_FORECAST_SITE_DIR", "site"))
+
+# Forecast days the hourly chart of the panel shows.
+PANEL_DAYS = 21
+REPO_URL = "https://github.com/hoseStr/energuia"
+API_URL = "https://energuia-api.onrender.com"
+LOG_URL = f"{REPO_URL}/tree/main/data/predictions"
+
 # --- Evaluation (PLAN.md section 4) ---
 BACKTEST_MONTHS = 12
 MOVING_AVERAGE_WEEKS = 4

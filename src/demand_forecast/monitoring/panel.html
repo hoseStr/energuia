@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colombia demand forecast: live panel</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11, 11, 11, 0.10);
+  --series-1: #2a78d6; --series-2: #eb6834; --good: #0ca30c; --critical: #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255, 255, 255, 0.10);
+    --series-1: #3987e5; --series-2: #d95926;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+main { max-width: 1080px; margin: 0 auto; padding: 32px 16px 48px; }
+h1 { font-size: 26px; line-height: 1.2; margin: 0 0 8px; }
+h2 { font-size: 17px; margin: 0; }
+p { margin: 0; }
+a { color: inherit; text-decoration-color: var(--axis); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+.lede { color: var(--ink-2); max-width: 70ch; }
+.links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 28px 0 12px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+.tile .label { color: var(--ink-2); font-size: 13px; }
+.tile .value { font-size: 32px; font-weight: 600; line-height: 1.2; margin: 4px 0; }
+.tile .note { color: var(--ink-2); font-size: 13px; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+.status svg { flex: none; }
+section.card { margin-top: 12px; }
+.subtitle { color: var(--ink-2); font-size: 13px; margin-top: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 12px 0 4px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend[hidden] { display: none; }
+.key-line { width: 16px; height: 2px; border-radius: 1px; }
+.key-rect { width: 10px; height: 10px; border-radius: 2px; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; overflow: visible; outline: none; }
+.chart svg:focus-visible { outline: 2px solid var(--series-1); outline-offset: 4px; border-radius: 4px; }
+.chart text { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.tooltip {
+  position: absolute; top: 8px; pointer-events: none; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 13px; min-width: 150px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.tooltip[hidden] { display: none; }
+.tooltip .when { color: var(--ink-2); margin-bottom: 4px; }
+.tooltip .row { display: flex; align-items: center; gap: 8px; }
+.tooltip .row b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.tooltip .row .name { color: var(--ink-2); margin-left: auto; padding-left: 12px; }
+.empty { color: var(--ink-2); padding: 28px 0 12px; }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--ink-2); font-size: 13px; }
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+th { color: var(--ink-2); font-weight: 500; }
+.prose p + p { margin-top: 8px; }
+.prose { color: var(--ink-2); max-width: 78ch; margin-top: 8px; }
+footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Day-ahead electricity demand forecast for Colombia</h1>
+    <p class="lede">Every day a model forecasts the hourly demand of the national grid for the next day and
+      writes it to a public log before that day starts. Once the grid operator (XM) publishes the actual demand,
+      about six days later, each forecast is scored here.</p>
+    <nav class="links" id="links"></nav>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <h2>Forecast and actual demand</h2>
+    <p class="subtitle" id="hourly-subtitle"></p>
+    <div class="legend">
+      <span><i class="key-line" style="background: var(--series-1)"></i>Forecast</span>
+      <span><i class="key-line" style="background: var(--series-2)"></i>Actual</span>
+    </div>
+    <div class="chart" id="hourly-chart"></div>
+    <details>
+      <summary>Table view: daily totals</summary>
+      <div class="table-wrap"><table id="days-table"></table></div>
+      <p class="subtitle" id="hourly-source"></p>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Error of each evaluated day</h2>
+    <p class="subtitle">Mean absolute percentage error (MAPE) of the 24 hours of each day, and its running mean since the first forecast.</p>
+    <div class="legend">
+      <span><i class="key-rect" style="background: var(--series-1)"></i>MAPE of the day</span>
+      <span><i class="key-line" style="background: var(--series-2)"></i>Cumulative MAPE</span>
+    </div>
+    <div class="chart" id="error-chart"></div>
+  </section>
+
+  <section class="card">
+    <h2>Feature drift</h2>
+    <div class="prose" id="drift"></div>
+  </section>
+
+  <section class="card">
+    <h2>How to read this page</h2>
+    <div class="prose">
+      <p>The forecast log only grows: a scheduled job appends 24 lines a day and never rewrites one, so the
+        history of the repository shows that each forecast existed before its day. A day without a run stays
+        empty; nothing is filled in afterwards.</p>
+      <p>The backtest figure is the error of the same model over the previous twelve months, replayed with only
+        the data that was published at each moment. The live error is expected to sit near it; an issue is opened
+        automatically when the last seven evaluated days exceed 1.5 times that figure.</p>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script type="application/json" id="data">__PAYLOAD__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const SVG = "http://www.w3.org/2000/svg";
+  const zone = D.timezone;
+  const dayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short" });
+  const shortDay = new Intl.DateTimeFormat("en-GB", { timeZone: zone, day: "numeric", month: "short" });
+  const hourFormat = new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const moment = new Intl.DateTimeFormat("en-GB", { timeZone: zone, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const asDay = (text) => new Date(text + "T12:00:00-05:00");
+  const percent = (value, digits = 2) => value.toFixed(digits) + "%";
+  const DAY_TYPES = { workday: "Workday", saturday: "Saturday", sunday_or_holiday: "Sunday or holiday" };
+
+  function el(tag, attrs = {}, text) {
+    const node = document.createElement(tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function svg(tag, attrs = {}, text) {
+    const node = document.createElementNS(SVG, tag);
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  // ---- Links, tiles, footer -------------------------------------------------
+  const links = document.getElementById("links");
+  for (const [label, href] of [["Source code", D.links.repo], ["Forecast API", D.links.api], ["Forecast log (CSV)", D.links.log]]) {
+    links.append(el("a", { href }, label));
+  }
+
+  function tile(label, value, note, status) {
+    const card = el("div", { class: "card tile" });
+    card.append(el("div", { class: "label" }, label), el("div", { class: "value" }, value));
+    if (status) {
+      const line = el("div", { class: "status" });
+      const icon = svg("svg", { width: 12, height: 12, viewBox: "0 0 12 12", "aria-hidden": "true" });
+      icon.append(status.ok
+        ? svg("circle", { cx: 6, cy: 6, r: 5, fill: "var(--good)" })
+        : svg("path", { d: "M6 1 L11 11 H1 Z", fill: "var(--critical)" }));
+      line.append(icon, document.createTextNode(status.text));
+      card.append(line);
+    }
+    card.append(el("div", { class: "note" }, note));
+    return card;
+  }
+
+  const tiles = document.getElementById("tiles");
+  const backtest = D.backtest;
+  if (D.live) {
+    tiles.append(tile("Live MAPE", percent(D.live.mape),
+      `${D.live.evaluated_days} evaluated day${D.live.evaluated_days === 1 ? "" : "s"}, ${shortDay.format(asDay(D.live.first_day))} to ${shortDay.format(asDay(D.live.last_day))}`));
+  } else {
+    tiles.append(tile("Live MAPE", "–", "No forecast has been evaluated yet: the actual demand arrives about six days after each day."));
+  }
+  if (D.live && D.live.recent_mape !== null) {
+    const ok = D.live.recent_mape <= D.alert_threshold;
+    tiles.append(tile(`Last ${D.live.recent_days} evaluated days`, percent(D.live.recent_mape),
+      `Alert above ${percent(D.alert_threshold)}`, { ok, text: ok ? "Within the expected range" : "Above the alert threshold" }));
+  } else {
+    tiles.append(tile(`Last ${D.recent_days} evaluated days`, "–", `Needs ${D.recent_days} evaluated days. Alert above ${percent(D.alert_threshold)}.`));
+  }
+  tiles.append(tile("Backtest MAPE", percent(backtest.mape),
+    `${shortDay.format(asDay(backtest.start))} ${backtest.start.slice(0, 4)} to ${shortDay.format(asDay(backtest.end))} ${backtest.end.slice(0, 4)}. Best baseline: ${percent(backtest.best_baseline_mape)}`));
+  if (D.latest) {
+    tiles.append(tile("Latest forecast", D.latest.total_gwh.toFixed(1) + " GWh",
+      `For ${dayFormat.format(asDay(D.latest.target_day))}, issued ${moment.format(new Date(D.latest.issued_at))}`));
+  } else {
+    tiles.append(tile("Latest forecast", "–", "The first forecast has not been logged yet."));
+  }
+
+  document.getElementById("footer").textContent =
+    `Generated ${moment.format(new Date(D.generated_at))} (Bogotá time). Model ${D.model_version}. Data: XM, metric DemaCome.`;
+
+  // ---- Chart ----------------------------------------------------------------
+  function niceTicks(low, high, count) {
+    const span = high - low || 1;
+    const step0 = Math.pow(10, Math.floor(Math.log10(span / count)));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * step0).find((s) => span / s <= count) || step0 * 10;
+    const first = Math.floor(low / step) * step;
+    const ticks = [];
+    for (let value = first; value < high + step * 0.999; value += step) ticks.push(+value.toFixed(10));
+    return ticks;
+  }
+
+  // cfg: { count, when(i), ticks: [{ i, label }], series: [{ name, type, color, values }],
+  //        zero, format(value), reference: { value, label } | null, label }
+  function chart(host, cfg) {
+    const tooltip = el("div", { class: "tooltip", hidden: "" });
+    let active = null;
+
+    function draw() {
+      host.replaceChildren();
+      const width = Math.max(host.clientWidth, 280);
+      const height = 300;
+      const pad = { top: 12, right: 12, bottom: 28, left: 44 };
+      const plotW = width - pad.left - pad.right;
+      const plotH = height - pad.top - pad.bottom;
+      const all = cfg.series.flatMap((s) => s.values.filter((v) => v !== null));
+      if (cfg.reference) all.push(cfg.reference.value);
+      const ticks = niceTicks(cfg.zero ? 0 : Math.min(...all), Math.max(...all), 5);
+      const low = ticks[0];
+      const high = ticks[ticks.length - 1];
+      const band = plotW / cfg.count;
+      const x = (i) => pad.left + band * (i + 0.5);
+      const y = (value) => pad.top + plotH * (1 - (value - low) / (high - low));
+
+      const root = svg("svg", { viewBox: `0 0 ${width} ${height}`, height, tabindex: 0, role: "img", "aria-label": cfg.label });
+      for (const value of ticks) {
+        root.append(svg("line", { x1: pad.left, x2: width - pad.right, y1: y(value), y2: y(value), stroke: value === low ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }));
+        root.append(svg("text", { x: pad.left - 8, y: y(value) + 4, "text-anchor": "end" }, cfg.format(value)));
+      }
+      const every = Math.max(1, Math.ceil(cfg.ticks.length / Math.max(2, Math.floor(plotW / 78))));
+      cfg.ticks.forEach((tick, index) => {
+        if (index % every) return;
+        root.append(svg("text", { x: x(tick.i), y: height - 8, "text-anchor": "middle" }, tick.label));
+      });
+
+      for (const series of cfg.series) {
+        if (series.type === "column") {
+          const w = Math.max(2, Math.min(24, band - 2));
+          series.values.forEach((value, i) => {
+            if (value === null) return;
+            const top = y(value);
+            const base = y(low);
+            const r = Math.min(4, w / 2, Math.max(0, base - top));
+            const left = x(i) - w / 2;
+            root.append(svg("path", {
+              d: `M${left} ${base} V${top + r} Q${left} ${top} ${left + r} ${top} H${left + w - r} Q${left + w} ${top} ${left + w} ${top + r} V${base} Z`,
+              fill: series.color, "data-index": i, class: "mark",
+            }));
+          });
+        } else {
+          let path = "";
+          let open = false;
+          series.values.forEach((value, i) => {
+            if (value === null) { open = false; return; }
+            path += `${open ? "L" : "M"}${x(i).toFixed(1)} ${y(value).toFixed(1)} `;
+            open = true;
+          });
+          root.append(svg("path", { d: path, fill: "none", stroke: series.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+          if (series.values.filter((v) => v !== null).length === 1) {
+            const i = series.values.findIndex((v) => v !== null);
+            root.append(svg("circle", { cx: x(i), cy: y(series.values[i]), r: 4, fill: series.color, stroke: "var(--surface)", "stroke-width": 2 }));
+          }
+        }
+      }
+      if (cfg.reference) {
+        const at = y(cfg.reference.value);
+        root.append(svg("line", { x1: pad.left, x2: width - pad.right, y1: at, y2: at, stroke: "var(--muted)", "stroke-width": 1 }));
+        const label = svg("text", { x: width - pad.right, y: at - 6, "text-anchor": "end" }, cfg.reference.label);
+        label.style.fill = "var(--ink-2)";
+        root.append(label);
+      }
+
+      const cross = svg("line", { y1: pad.top, y2: pad.top + plotH, stroke: "var(--muted)", "stroke-width": 1, visibility: "hidden" });
+      const dots = cfg.series.map((series) => svg("circle", { r: 4, fill: series.color, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }));
+      root.append(cross, ...dots);
+
+      function show(i) {
+        active = Math.max(0, Math.min(cfg.count - 1, i));
+        cross.setAttribute("x1", x(active));
+        cross.setAttribute("x2", x(active));
+        cross.setAttribute("visibility", "visible");
+        tooltip.replaceChildren(el("div", { class: "when" }, cfg.when(active)));
+        cfg.series.forEach((series, index) => {
+          const value = series.values[active];
+          const dot = dots[index];
+          if (value === null) { dot.setAttribute("visibility", "hidden"); return; }
+          dot.setAttribute("cx", x(active));
+          dot.setAttribute("cy", y(value));
+          dot.setAttribute("visibility", "visible");
+          const row = el("div", { class: "row" });
+          const key = el("i", { class: "key-line" });
+          key.style.background = series.color;
+          row.append(key, el("b", {}, cfg.format(value, true)), el("span", { class: "name" }, series.name));
+          tooltip.append(row);
+        });
+        if (cfg.extra) {
+          const text = cfg.extra(active);
+          if (text) tooltip.append(el("div", { class: "when" }, text));
+        }
+        tooltip.hidden = false;
+        const box = tooltip.offsetWidth;
+        const left = x(active) + 12 + box > width ? x(active) - 12 - box : x(active) + 12;
+        tooltip.style.left = Math.max(0, left) + "px";
+      }
+      function hide() {
+        active = null;
+        cross.setAttribute("visibility", "hidden");
+        dots.forEach((dot) => dot.setAttribute("visibility", "hidden"));
+        tooltip.hidden = true;
+      }
+      const hit = svg("rect", { x: pad.left, y: pad.top, width: plotW, height: plotH, fill: "transparent" });
+      hit.addEventListener("pointermove", (event) => {
+        const bounds = root.getBoundingClientRect();
+        const px = (event.clientX - bounds.left) * (width / bounds.width);
+        show(Math.floor((px - pad.left) / band));
+      });
+      hit.addEventListener("pointerleave", hide);
+      root.addEventListener("focus", () => show(active === null ? cfg.count - 1 : active));
+      root.addEventListener("blur", hide);
+      root.addEventListener("keydown", (event) => {
+        const step = { ArrowLeft: -1, ArrowRight: 1, PageUp: -24, PageDown: 24 }[event.key];
+        if (event.key === "Escape") hide();
+        if (!step) return;
+        event.preventDefault();
+        show((active === null ? cfg.count - 1 : active) + step);
+      });
+      root.append(hit);
+      host.append(root, tooltip);
+    }
+
+    draw();
+    let lastWidth = host.clientWidth;
+    new ResizeObserver(() => {
+      if (host.clientWidth === lastWidth) return;
+      lastWidth = host.clientWidth;
+      draw();
+    }).observe(host);
+  }
+
+  // ---- Forecast and actual, hourly ------------------------------------------
+  const hours = D.hourly;
+  const hourlyHost = document.getElementById("hourly-chart");
+  if (hours.length) {
+    const times = hours.map((row) => new Date(row[0]));
+    const ticks = [];
+    hours.forEach((row, i) => { if (row[0].slice(11, 13) === "00") ticks.push({ i: i + 12, label: shortDay.format(times[i]) }); });
+    const shown = hours.length / 24;
+    document.getElementById("hourly-subtitle").textContent =
+      `Hourly demand in GWh, last ${shown} forecast day${shown === 1 ? "" : "s"}. The actual line ends where XM has published complete data.`;
+    chart(hourlyHost, {
+      label: "Line chart of the hourly demand forecast and the actual demand",
+      count: hours.length,
+      when: (i) => hourFormat.format(times[i]),
+      ticks: ticks.map((tick) => ({ i: Math.min(tick.i, hours.length - 1), label: tick.label })),
+      series: [
+        { name: "Forecast", type: "line", color: "var(--series-1)", values: hours.map((row) => row[1]) },
+        { name: "Actual", type: "line", color: "var(--series-2)", values: hours.map((row) => row[2]) },
+      ],
+      zero: false,
+      format: (value, full) => (full ? value.toFixed(2) + " GWh" : value.toFixed(value % 1 ? 1 : 0)),
+      extra: (i) => (hours[i][2] === null ? "Actual not published yet"
+        : `Error ${percent(Math.abs(hours[i][1] - hours[i][2]) / hours[i][2] * 100)}`),
+      reference: null,
+    });
+  } else {
+    hourlyHost.previousElementSibling.hidden = true;
+    hourlyHost.append(el("p", { class: "empty" }, "No forecast has been logged yet. The first one appears after the next daily run."));
+  }
+
+  // ---- Table of days ----------------------------------------------------------
+  const table = document.getElementById("days-table");
+  const head = el("tr");
+  for (const name of ["Day", "Type", "Forecast (GWh)", "Actual (GWh)", "MAPE"]) head.append(el("th", { scope: "col" }, name));
+  table.append(head);
+  for (const row of [...D.days].reverse()) {
+    const line = el("tr");
+    line.append(
+      el("td", {}, dayFormat.format(asDay(row.day)) + " " + row.day.slice(0, 4)),
+      el("td", {}, DAY_TYPES[row.day_type] || row.day_type),
+      el("td", {}, row.predicted_gwh.toFixed(1)),
+      el("td", {}, row.actual_gwh === null ? "pending" : row.actual_gwh.toFixed(1)),
+      el("td", {}, row.mape === null ? "pending" : percent(row.mape)),
+    );
+    table.append(line);
+  }
+  const source = document.getElementById("hourly-source");
+  source.append("Every hourly value is in the ", el("a", { href: D.links.log }, "forecast log"), ".");
+
+  // ---- Error by day -----------------------------------------------------------
+  const scored = D.days.filter((row) => row.mape !== null);
+  const errorHost = document.getElementById("error-chart");
+  if (scored.length) {
+    chart(errorHost, {
+      label: "Column chart of the MAPE of each evaluated day with its running mean",
+      count: scored.length,
+      when: (i) => dayFormat.format(asDay(scored[i].day)) + " · " + (DAY_TYPES[scored[i].day_type] || ""),
+      ticks: scored.map((row, i) => ({ i, label: shortDay.format(asDay(row.day)) })),
+      series: [
+        { name: "MAPE of the day", type: "column", color: "var(--series-1)", values: scored.map((row) => row.mape) },
+        { name: "Cumulative MAPE", type: "line", color: "var(--series-2)", values: scored.map((row) => row.cumulative_mape) },
+      ],
+      zero: true,
+      format: (value, full) => (full ? percent(value) : value + "%"),
+      reference: { value: backtest.mape, label: `Backtest ${percent(backtest.mape)}` },
+    });
+  } else {
+    errorHost.previousElementSibling.hidden = true;
+    errorHost.append(el("p", { class: "empty" }, "No day has been evaluated yet. XM publishes the complete demand of a day about six days later."));
+  }
+
+  // ---- Drift ------------------------------------------------------------------
+  const drift = document.getElementById("drift");
+  if (D.drift) {
+    const total = Object.keys(D.drift.scores).length;
+    const count = D.drift.drifted.length;
+    drift.append(el("p", {},
+      `${count} of the ${total} load features the model reads drifted in the last ${D.drift.current_days} forecast day${D.drift.current_days === 1 ? "" : "s"}, ` +
+      `compared with the period the model was trained on (${D.drift.reference_start} to ${D.drift.reference_end}). ` +
+      `A feature counts as drifted when it sits farther from that period than ${Math.round(D.drift.quantile * 100)}% of the windows of the same length inside it (${D.drift.method}).`));
+    if (count) drift.append(el("p", {}, "Drifted: " + D.drift.drifted.join(", ") + "."));
+    const more = el("p");
+    more.append(el("a", { href: "drift.html" }, "Open the full drift report (Evidently)"));
+    drift.append(more);
+  } else {
+    drift.append(el("p", {}, "The drift report compares the features of the logged forecasts with the training period. It appears once the first forecast is logged."));
+  }
+})();
+</script>
+</body>
+</html>
