@@ -30,16 +30,16 @@ h2 { font-size: 17px; margin: 0; }
 p { margin: 0; }
 a { color: inherit; text-decoration-color: var(--axis); text-underline-offset: 3px; }
 a:hover { text-decoration-color: currentColor; }
-.top { display: flex; flex-wrap: wrap-reverse; justify-content: space-between; align-items: flex-start; gap: 8px 24px; }
+.top { display: flex; flex-wrap: wrap-reverse; justify-content: space-between; align-items: flex-end; gap: 8px 24px; }
 .top h1 { flex: 1 1 320px; }
-.lang { display: inline-flex; flex: none; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
-.lang button {
-  font: inherit; font-size: 13px; color: var(--ink-2); background: transparent; border: 0;
-  padding: 4px 12px; cursor: pointer;
+.lang {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; font: inherit; font-size: 13px;
+  color: var(--ink-2); background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 5px 12px; cursor: pointer;
 }
-.lang button + button { border-left: 1px solid var(--border); }
-.lang button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; }
-.lang button:focus-visible { outline: 2px solid var(--series-1); outline-offset: -2px; }
+.lang:hover { color: var(--ink); border-color: var(--axis); }
+.lang:focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
+.lang svg { flex: none; }
 .lede { color: var(--ink-2); max-width: 70ch; }
 .links { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 28px 0 12px; }
@@ -87,10 +87,12 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
   <header>
     <div class="top">
       <h1 data-t="h1"></h1>
-      <div class="lang" role="group" id="lang">
-        <button type="button" data-lang="es" lang="es" aria-pressed="false">Español</button>
-        <button type="button" data-lang="en" lang="en" aria-pressed="false">English</button>
-      </div>
+      <button type="button" class="lang" id="lang">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true">
+          <circle cx="8" cy="8" r="6.5"/><path d="M1.5 8h13M8 1.5c2 2 2 11 0 13M8 1.5c-2 2-2 11 0 13"/>
+        </svg>
+        <span id="lang-name"></span>
+      </button>
     </div>
     <p class="lede" data-t="lede"></p>
     <nav class="links" id="links"></nav>
@@ -144,7 +146,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
   "en": {
     "locale": "en-GB",
     "title": "Colombia demand forecast: live panel",
-    "language": "Language",
+    "language_name": "English",
     "h1": "Day-ahead electricity demand forecast for Colombia",
     "lede": "Every day a model forecasts the hourly demand of the national grid for the next day and writes it to a public log before that day starts. Once the grid operator (XM) publishes the actual demand, about six days later, each forecast is scored here.",
     "link_repo": "Source code",
@@ -209,7 +211,7 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
   "es": {
     "locale": "es-CO",
     "title": "Pronóstico de demanda de Colombia: panel en vivo",
-    "language": "Idioma",
+    "language_name": "Español",
     "h1": "Pronóstico de la demanda eléctrica de Colombia para el día siguiente",
     "lede": "Cada día un modelo pronostica la demanda horaria del sistema eléctrico nacional para el día siguiente y la escribe en una bitácora pública antes de que ese día empiece. Cuando el operador del mercado (XM) publica la demanda real, unos seis días después, cada pronóstico se evalúa aquí.",
     "link_repo": "Código fuente",
@@ -316,9 +318,8 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
     history.replaceState(null, "", url);
     render(language);
   }
-  for (const button of document.querySelectorAll("#lang button")) {
-    button.addEventListener("click", () => choose(button.dataset.lang));
-  }
+  const otherLanguage = (language) => Object.keys(TEXT).find((code) => code !== language);
+  document.getElementById("lang").addEventListener("click", () => choose(otherLanguage(document.documentElement.lang)));
 
   // ---- Chart ------------------------------------------------------------------
   function niceTicks(low, high, count) {
@@ -494,10 +495,10 @@ footer { color: var(--muted); font-size: 13px; margin-top: 24px; }
     document.documentElement.lang = language;
     document.title = T.title;
     for (const node of document.querySelectorAll("[data-t]")) node.textContent = T[node.dataset.t];
-    document.getElementById("lang").setAttribute("aria-label", T.language);
-    for (const button of document.querySelectorAll("#lang button")) {
-      button.setAttribute("aria-pressed", String(button.dataset.lang === language));
-    }
+    const offered = otherLanguage(language);
+    const offeredName = document.getElementById("lang-name");
+    offeredName.textContent = TEXT[offered].language_name;
+    offeredName.lang = offered;
     observers.splice(0).forEach((observer) => observer.disconnect());
 
     // Links, tiles and footer
