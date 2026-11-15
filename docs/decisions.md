@@ -85,12 +85,12 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
 
 - **Una página estática** (`monitoring/report.py` y `monitoring/panel.html`), sin librerías externas: los datos van como JSON dentro del HTML y un script propio dibuja dos gráficas en SVG. Se publica en GitHub Pages como artefacto del workflow; `site/` no se commitea.
 - **Contenido:** cuatro cifras (MAPE real, MAPE de los últimos 7 días evaluados con su estado, MAPE del backtest y último pronóstico), pronóstico contra real por hora de los últimos 21 días registrados, error de cada día evaluado con su media acumulada, tabla de días, resumen del drift y enlaces al código, la API y la bitácora.
-- **En español y en inglés**, con un selector en la misma página. Empezó solo en inglés, por decisión de Claude; el usuario pidió las dos versiones el 2026-11-15.
+- **En español y en inglés**, con un botón en la misma página que alterna entre los dos: muestra el nombre del otro idioma ("English" en la versión en español, "Español" en la versión en inglés). Empezó solo en inglés, por decisión de Claude; el usuario pidió las dos versiones el 2026-11-15, y ese mismo día pidió un solo botón en lugar del selector de dos opciones.
   - Los textos de ambos idiomas van como JSON dentro de `panel.html`. Un test comprueba que los dos tienen las mismas claves y los mismos huecos, y que todo texto que pide la página existe.
   - El idioma sale, en este orden, de `?lang=es` o `?lang=en` en la dirección, de la última elección guardada en el navegador y del idioma del navegador (español si lo pide, inglés si no). Al elegir, la dirección cambia para que el enlace se pueda compartir.
   - Fechas y números siguen el idioma: `1,96 %` y `3:17 p. m.` en español (formato de Colombia), `1.96%` y `15:17` en inglés.
   - El informe completo de Evidently (`drift.html`) y los nombres de las features siguen en inglés.
-  - Se revisó con capturas en los dos idiomas, en modo claro y oscuro y a 500 px de ancho, y se probó el selector en un navegador sin interfaz.
+  - Se revisó con capturas en los dos idiomas, en modo claro y oscuro y a 500 px de ancho, y se probó el botón en un navegador sin interfaz (tres clics seguidos: el idioma, el título y la dirección cambian, y nada se duplica).
 - **Estados vacíos:** la página se ve bien sin pronósticos, con un solo pronóstico y sin días evaluados, que es como estará los primeros 6 días.
 - Colores validados para daltonismo y contraste en modo claro y oscuro. La vista previa se revisó con capturas en ambos modos.
 
