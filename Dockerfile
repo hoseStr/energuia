@@ -18,7 +18,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
-# --- Runtime: the environment, the published data and the registered models ---
+# --- Runtime: the environment, the data (forecast log and errors included) and the models ---
 FROM python:3.11-slim-trixie
 
 # LightGBM needs the OpenMP runtime.
@@ -30,7 +30,7 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=builder /app/.venv ./.venv
-COPY data/processed ./data/processed
+COPY data ./data
 COPY models ./models
 
 ENV PATH="/app/.venv/bin:$PATH" \

@@ -1,0 +1,3 @@
+# The forecast log and the error table are appended to by Linux runners: keep LF everywhere.
+data/predictions/*.csv text eol=lf
+data/metrics/*.csv text eol=lf

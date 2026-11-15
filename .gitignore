@@ -10,6 +10,9 @@ mlruns/
 mlflow.db
 .ipynb_checkpoints/
 
+# Generated site (published to GitHub Pages by the daily job)
+site/
+
 # Secrets
 .env
 
