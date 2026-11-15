@@ -2,6 +2,19 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-15: Fase 5, README y pulido
+
+- **La fase se hizo antes de que la Fase 4 cumpla su criterio de aceptación**, por decisión del usuario. PLAN.md §0 pide no empezar una fase sin cerrar la anterior; aquí lo único pendiente de la Fase 4 es esperar tres días de corridas, y el README no depende de eso.
+- **README en español.** Lo decidió el usuario; la recomendación de PLAN.md §8 era inglés con un resumen en español. El panel y la API siguen en inglés.
+- **Sin licencia por ahora.** Lo decidió el usuario; la recomendación era MIT. Sin archivo de licencia, el código es público pero nadie tiene permiso de reutilizarlo. La casilla de PLAN.md queda abierta.
+- **Autor: HoseStr**, el usuario de GitHub.
+- **El README solo muestra el backtest.** El error real no se copia: está en el panel y en `/metrics`, y un número pegado en el README quedaría viejo al día siguiente.
+- **La tabla del README deja de reproducirse cuando la ventana avanza.** `backtest` evalúa siempre los últimos 12 meses completos, así que hacia el 5 de diciembre de 2026 pasará a la ventana 2025-12-01 a 2026-11-30. El README lo dice. Cuando pase, hay que decidir si se actualiza la tabla (y con qué modelo) o si se agrega una opción para fijar la ventana.
+- **"Qué aprendí y qué haría distinto" la redactó Claude** con lo que consta en este documento. Habla en primera persona del usuario, que debe revisarla.
+- **El README dice que el proyecto se desarrolló con Claude Code.** El repo ya lo muestra (`CLAUDE.md`, `PLAN.md` y este documento); el usuario puede quitar la frase.
+- **Revisión en limpio:** clon del commit `e9fd087` en la misma máquina Windows. `uv sync` tardó 25 segundos con la caché de `uv` llena, y `backtest --model lightgbm` 1 minuto 40 y dio la misma tabla (1,96 %). `pytest` pasó con 311 tests y 7 saltados (los de drift, sin el grupo `monitoring`); `forecast` y `serve` respondieron. No se probó en Linux ni con la caché vacía, y no lo siguió una persona ajena, que es lo que pide el criterio de aceptación.
+- **El diagrama de arquitectura es Mermaid**, que GitHub renderiza. No se vio renderizado antes del push.
+
 ## 2026-11-15: Fase 4, automatización y monitoreo
 
 ### Bitácora de pronósticos

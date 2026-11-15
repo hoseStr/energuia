@@ -224,11 +224,13 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 ### Fase 5 — README y pulido
 
-- [ ] README con este orden: qué problema resuelve (2 líneas), enlaces en vivo, diagrama de arquitectura, tabla de resultados, cómo reproducir en 3 comandos, decisiones de diseño, limitaciones conocidas.
-- [ ] Sección "Qué aprendí / qué haría distinto".
-- [ ] Insignias de CI y del job diario.
-- [ ] Licencia y `CONTRIBUTING` mínimo.
-- [ ] Revisión final: clonar el repo en limpio y seguir el README al pie de la letra.
+> **Hecha el 2026-11-15, antes de que la Fase 4 cumpla su criterio de aceptación** (tres días de corridas automáticas), por decisión del usuario. El README no depende de esas corridas. Ver `docs/decisions.md`.
+
+- [x] README con este orden: qué problema resuelve (2 líneas), enlaces en vivo, diagrama de arquitectura, tabla de resultados, cómo reproducir en 3 comandos, decisiones de diseño, limitaciones conocidas. *(En español, por decisión del usuario. El diagrama es Mermaid y no se vio renderizado antes del push.)*
+- [x] Sección "Qué aprendí / qué haría distinto". *(Redactada por Claude a partir de `docs/decisions.md`; el usuario debe revisarla, porque habla en su nombre.)*
+- [x] Insignias de CI y del job diario.
+- [ ] Licencia y `CONTRIBUTING` mínimo. *(`CONTRIBUTING.md` está. El usuario decidió no poner licencia por ahora, así que la casilla queda abierta.)*
+- [x] Revisión final: clonar el repo en limpio y seguir el README al pie de la letra. *(Clon del commit `e9fd087` en Windows: `uv sync` y el backtest reproducen la tabla; también pasaron `pytest`, `forecast` y `serve`. No lo siguió una persona ajena ni se probó en Linux.)*
 
 **Aceptación:** una persona ajena al proyecto puede reproducir el backtesting siguiendo solo el README.
 
@@ -249,10 +251,10 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 Hacerlas cuando toque, no todas al inicio:
 
-1. Nombre definitivo del repositorio (propuesta: `energy-demand-forecast-co`).
-2. Idioma del README (recomendación: inglés, con un resumen en español).
-3. Plataforma de despliegue de la API (Fase 3).
-4. Licencia (recomendación: MIT).
+1. Nombre definitivo del repositorio (propuesta: `energy-demand-forecast-co`). **Respondida:** `energuia`.
+2. Idioma del README (recomendación: inglés, con un resumen en español). **Respondida el 2026-11-15:** español.
+3. Plataforma de despliegue de la API (Fase 3). **Respondida el 2026-11-14:** Render.
+4. Licencia (recomendación: MIT). **Respondida el 2026-11-15:** sin licencia por ahora.
 
 ## 9. Extensiones posteriores al MVP
 
