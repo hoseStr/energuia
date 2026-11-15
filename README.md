@@ -10,7 +10,7 @@ Cada pronóstico queda escrito en el repositorio antes de que empiece su día y 
 
 | Qué | Dónde |
 |---|---|
-| Panel: pronóstico contra real y error acumulado | https://hosestr.github.io/energuia/ |
+| Panel: pronóstico contra real y error acumulado | [en español](https://hosestr.github.io/energuia/?lang=es) · [in English](https://hosestr.github.io/energuia/?lang=en) |
 | API: pronóstico vigente y métricas | https://energuia-api.onrender.com/docs |
 | Bitácora de pronósticos emitidos | [`data/predictions/`](data/predictions) |
 | Corridas diarias | [Actions → Daily forecast](https://github.com/hoseStr/energuia/actions/workflows/daily.yml) |

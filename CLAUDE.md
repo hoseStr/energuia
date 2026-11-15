@@ -31,6 +31,7 @@ Reglas permanentes del proyecto (copiadas de PLAN.md §7). El plan por fases est
 - La API sirve la bitácora (ya no calcula); `/forecast` da 503 con la bitácora vacía. El job diario redespliega Render con el secreto `RENDER_DEPLOY_HOOK_URL`.
 - Evidently va en el grupo `monitoring`: `uv sync --group notebook --group monitoring` conserva todo; `uv sync` a secas desinstala los dos grupos.
 - Primera corrida del job diario el 2026-11-15, a mano y en verde: Pages y el deploy hook de Render ya están configurados. Panel: https://hosestr.github.io/energuia/. Falta ver correr el cron, la evaluación contra el dato real (hacia el 21 de noviembre), `retrain.yml` (domingo 22) y el issue de alerta.
+- El panel está en español y en inglés (`?lang=es` y `?lang=en`): los textos de ambos idiomas van como JSON en `monitoring/panel.html`, y todo texto nuevo debe agregarse en los dos (hay un test).
 - El bot commitea a `main` todos los días: hacer `git pull` antes de commitear.
 - No hay informe de drift con menos de 7 días en la bitácora (`DRIFT_MIN_DAYS`): las ventanas más cortas dan falsas alarmas (`explore/12_short_drift_windows.py`, unos 12 minutos).
 - En esta máquina, correr los tests dentro de Docker junto con otras tareas puede agotar la memoria.
