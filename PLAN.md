@@ -164,7 +164,7 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 > - **Decisión pendiente de la Fase 1:** si las horas marcadas como `anomaly` se excluyen del entrenamiento. En la evaluación siguen contando.
 
 - [x] Agregar `lightgbm` y `mlflow` a `pyproject.toml` y comprobar que funcionan con pandas 3 en Windows. *(Hecho el 2026-11-13 con aprobación del usuario: `lightgbm` de ejecución y `mlflow` en el grupo `dev`. MLflow 3 guarda las corridas en `mlflow.db`; ver `docs/decisions.md`.)*
-- [ ] Fijar `DATA_LAG_DAYS` y `GENERATION_LAG_DAYS` con `explore/08_snapshot.py summary` cuando estén los snapshots del 14 al 17 de noviembre. Si el retraso depende del día de emisión, llevar esa regla a `available_history`. *(Única casilla abierta de la fase: depende de datos que todavía no existen. Si los retrasos cambian, hay que volver a correr `backtest` y `train` y actualizar los resultados.)*
+- [x] Fijar `DATA_LAG_DAYS` y `GENERATION_LAG_DAYS` con `explore/08_snapshot.py summary` cuando estén los snapshots del 14 al 17 de noviembre. Si el retraso depende del día de emisión, llevar esa regla a `available_history`. *(Hecho el 2026-11-18: XM publica también en fines de semana y festivos, y el retraso es siempre D−5 para la demanda y D−3 para `Gene`. Los valores no cambian, así que no hubo que repetir `backtest` ni `train`. El 17 se midió con los datos del job diario. Ver `docs/data_notes.md` §3.5.)*
 - [x] Ampliar `Forecaster` y `run_backtest` para que el modelo reciba también `Gene`, cortada con su retraso. *(`History` lleva las dos series, cada una con su corte.)*
 - [x] `features/build.py`: rezagos (respetando `horizonte + L`), medias y desviaciones móviles, hora, día de la semana, mes, festivos de Colombia (paquete `holidays`, ya instalado y usado en `daytypes.py`), víspera y día posterior a festivo. Los hallazgos de `notebooks/01_exploration.ipynb` (§7) orientan qué features valen la pena. *(20 features, todas como razones contra el perfil reciente del mismo tipo de día; el mes quedó fuera. Ver `docs/decisions.md`.)*
 - [x] **Test anti-fuga obligatorio:** para un timestamp objetivo, ninguna feature usa datos posteriores al momento de emisión. Construirlo antes que las features. *(`tests/test_features.py`: destruye todo lo no publicado y comprueba que las filas no cambian.)*
@@ -176,7 +176,7 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 
 **Aceptación:** el modelo cumple la meta de la sección 4 en backtesting, o existe una explicación documentada de por qué no. Hay una tabla comparativa modelo contra baselines lista para el README.
 
-> **Cumplida el 2026-11-13** (210 tests), con `DATA_LAG_DAYS` todavía provisional. Backtest del 2025-11-01 al 2026-10-31: LightGBM MAPE 1,96 % frente a 3,03 % del mejor baseline (−35 %; la meta era ≤ 2,58 %). La tabla comparativa está en `docs/error_analysis.md` §1.
+> **Cumplida el 2026-11-13** (210 tests), con `DATA_LAG_DAYS` todavía provisional (quedó fijo en 5 el 2026-11-18, sin cambios). Backtest del 2025-11-01 al 2026-10-31: LightGBM MAPE 1,96 % frente a 3,03 % del mejor baseline (−35 %; la meta era ≤ 2,58 %). La tabla comparativa está en `docs/error_analysis.md` §1.
 
 ### Fase 3 — Servicio y CI
 
@@ -207,7 +207,7 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 > - **El umbral de drift se calibra con el propio entrenamiento**: el de Evidently por defecto marcaría el 93 % de los meses normales.
 > - **El panel se publica como artefacto de GitHub Pages**; `site/` no se commitea.
 
-- [x] `daily.yml` (cron diario; recordar que el cron de GitHub usa UTC y puede retrasarse): *(Escrito el 2026-11-15, a las 20:17 UTC. Todavía no ha corrido en GitHub; el job completo se probó en local contra XM sobre una copia de los datos.)*
+- [x] `daily.yml` (cron diario; recordar que el cron de GitHub usa UTC y puede retrasarse): *(Escrito el 2026-11-15, a las 20:17 UTC. El cron corre en GitHub desde el 15 de noviembre, con entre 3,5 y 6,5 horas de retraso.)*
   1. Ingesta incremental de datos reales.
   2. Evaluar los pronósticos pasados cuyos datos reales ya llegaron; agregar a `data/metrics/`.
   3. Emitir el pronóstico del siguiente día objetivo y agregarlo a `data/predictions/` con versión del modelo y momento de emisión.
@@ -221,6 +221,8 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 - [x] Verificar si GitHub desactiva los workflows programados por inactividad del repo y cómo evitarlo **(por verificar)**. *(Sí: en repos públicos, tras 60 días sin actividad. El commit diario del job debería evitarlo; que los commits del bot cuenten como actividad no se confirmó en la documentación oficial.)*
 
 **Aceptación:** tres días consecutivos de ejecución automática sin intervención, con el panel actualizado y la bitácora creciendo.
+
+> **Cumplida el 2026-11-18.** El cron corrió solo y en verde cuatro noches seguidas (15 al 18 de noviembre). Cada noche agregó el pronóstico a la bitácora, publicó el panel y redesplegó la API. Siguen sin verse en GitHub la evaluación contra el dato real (hacia el 21 de noviembre), `retrain.yml` (domingo 22) y el issue de alerta. Ver `docs/decisions.md`.
 
 ### Fase 5 — README y pulido
 

@@ -2,6 +2,14 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-18: retrasos fijos y cierre de la Fase 4
+
+- **`DATA_LAG_DAYS = 5` y `GENERATION_LAG_DAYS = 3` dejan de ser provisionales.** Los snapshots del sábado 14, el domingo 15 y el lunes festivo 16, más los datos del job diario del 17 y el 18, dieron el mismo retraso que los días hábiles: XM publica todos los días y el retraso no depende del día de emisión (`data_notes.md` §3.5). `available_history` no cambia, y el backtest y el entrenamiento de la Fase 2 siguen valiendo porque ya usaban estos valores. Con esto se cierra la última casilla de la Fase 2.
+- **El snapshot del martes 17 se reemplazó por los datos del job diario.** El usuario no pudo tomarlo. El job guarda en `data/raw/` la misma consulta de 31 días que `08_snapshot.py`, así que el commit de ese día (`7f836aa`) sirve como snapshot. Para medir el retraso en el futuro basta con el historial de git de `data/raw/`; `08_snapshot.py` ya no hace falta a diario.
+- **La comprobación cruzada con `Gene` deja de ser provisional y se mantiene**, aunque no rechazó ningún día: los ocho días que se completaron entre el 10 y el 18 de noviembre pasaron de parciales a completos de un salto.
+- **Fase 4 cumplida.** El cron de `daily.yml` corrió solo y en verde cuatro noches seguidas: 15, 16, 17 y 18 de noviembre (23:58, 02:55, 02:26 y 01:52 UTC). Cada noche agregó 24 líneas a la bitácora y redesplegó la API y el panel. Siguen sin verse en GitHub la evaluación contra el dato real (el primer día evaluable es el 16, que se publica completo hacia el 21), `retrain.yml` (domingo 22) y el issue de alerta.
+- **El cron se retrasa mucho.** Está programado a las 20:17 UTC y arrancó con entre 3 h 41 min y 6 h 38 min de retraso (entre las 18:58 y las 21:55 de Bogotá). Si alguna vez arranca después de las 05:00 UTC, ya es otro día en Bogotá y el pronóstico de ese día no se emite: la bitácora no rellena huecos. Hoy queda un margen de unas dos horas. Queda como propuesta para el usuario adelantar el cron, porque XM ya publicó antes de las 11:00 de Bogotá (`data_notes.md` §3.3).
+
 ## 2026-11-15: Fase 5, README y pulido
 
 - **La fase se hizo antes de que la Fase 4 cumpla su criterio de aceptación**, por decisión del usuario. PLAN.md §0 pide no empezar una fase sin cerrar la anterior; aquí lo único pendiente de la Fase 4 es esperar tres días de corridas, y el README no depende de eso.
