@@ -80,7 +80,7 @@ Consecuencias para el diseño:
 - **Lag mínimo utilizable** si se emite en D para D+1: el último dato completo es D−5, así que la distancia hasta el día objetivo es de **6 días**. El rezago semanal (D+1−7 = D−6) **sí está disponible**, pero con un solo día de margen. El rezago de 1 día y el de 2 días **no se pueden usar**. Propuesta tentativa: `DATA_LAG_DAYS = 5`.
 
 **Pendiente (por verificar):**
-- **Más mediciones.** La primera se hizo un martes por la noche (la segunda está en §3.2). Ese día el jueves 5 estaba completo y el viernes 6 no, lo que encaja con dos hipótesis distintas:
+- **Más mediciones.** *(Resuelto el 2026-11-18: se cumple la hipótesis A y el retraso no depende del día de la semana ni de los festivos. Ver §3.5.)* La primera se hizo un martes por la noche (la segunda está en §3.2). Ese día el jueves 5 estaba completo y el viernes 6 no, lo que encaja con dos hipótesis distintas:
   - **A. Días calendario:** siempre está completo hasta D−5.
   - **B. Días hábiles:** un día queda completo cuando han pasado 3 días hábiles después de él.
 
@@ -109,7 +109,7 @@ Consecuencias para el diseño:
 
 **Señal 2: total diario de `DemaCome` frente al de `Gene`.** En los 9 806 días completos entre 2000-01-01 y 2026-11-05 la razón va de 0,9989 a 1,0617: `DemaCome` nunca quedó más de un 0,11 % por debajo de `Gene`. En los dos días parciales es 0,28 y 0,26. No depende del día de la semana ni de los festivos. (La primera versión de esta nota usaba solo los últimos 12 meses; el 2026-11-11 se descargó la historia completa de `Gene` y la regla se mantuvo.)
 
-**Límite conocido de la señal 1.** Solo se han visto días parciales en un estado (~0,27). Si un día pasa por un estado intermedio con el mercado regulado completo y sin el no regulado, su razón sería ≈ 0,70 (el no regulado aporta ~74 de ~246 GWh) y superaría el umbral de 0,60. Ningún umbral sobre el total separa ese caso de un 1 de enero (0,725). Por eso la Fase 1 agrega la señal 2 como segunda condición para `DemaCome`, con umbral 0,95. Queda **por verificar** con los snapshots del 11 al 19 de noviembre de 2026 si esos estados intermedios existen: `08_snapshot.py summary` imprime las dos razones de los últimos 6 días de cada snapshot.
+**Límite conocido de la señal 1.** Solo se han visto días parciales en un estado (~0,27). Si un día pasa por un estado intermedio con el mercado regulado completo y sin el no regulado, su razón sería ≈ 0,70 (el no regulado aporta ~74 de ~246 GWh) y superaría el umbral de 0,60. Ningún umbral sobre el total separa ese caso de un 1 de enero (0,725). Por eso la Fase 1 agrega la señal 2 como segunda condición para `DemaCome`, con umbral 0,95. Queda **por verificar** con los snapshots del 11 al 19 de noviembre de 2026 si esos estados intermedios existen: `08_snapshot.py summary` imprime las dos razones de los últimos 6 días de cada snapshot. *(Hasta el 2026-11-18 no apareció ninguno: ocho días pasaron de parciales a completos de un salto. Ver §3.5.)*
 
 ### 3.2 Segunda medición (2026-11-11, miércoles, 21:54)
 
@@ -160,6 +160,24 @@ Consecuencias para el diseño:
 - **Cuarta transición de un salto, sin estados intermedios.** La razón `DemaCome` / `Gene` del lunes 9 pasó de 0,25 a 1,00.
 - **Ningún día completo de `DemaCome` cambió** entre el 13 y el 14 de noviembre (días del 14 de octubre al 8 de noviembre). `Gene` del lunes 9 cambió un 0,006 % al completarse `DemaCome` de ese día, el mismo patrón de §3.3.
 - No se corrió la ingesta: los datos del repo siguen en `demand` hasta el 2026-11-08 y `generation` hasta el 2026-11-10.
+
+### 3.5 Fin de semana, festivo y cierre (2026-11-15 a 2026-11-18)
+
+Snapshots con `explore/08_snapshot.py` el domingo 15 a las 12:04 y el lunes festivo 16 a las 23:34. No hubo snapshot del martes 17: para ese día y para el miércoles 18 se usaron los datos crudos que commitea el job diario (`data/raw/<serie>/2026.parquet` en los commits `7f836aa`, corrido el 17 a las 21:26, y `b761bff`, el 18 a las 20:52, hora de Bogotá), que son la misma consulta a XM con la ventana de 31 días.
+
+| Medición | Día | Último día completo de `DemaCome` | Último día completo de `Gene` |
+|---|---|---|---|
+| Snapshot | domingo 15 | martes 10 (D−5) | jueves 12 (D−3) |
+| Snapshot | lunes 16, festivo | miércoles 11 (D−5) | viernes 13 (D−3) |
+| Job diario | martes 17 | jueves 12 (D−5) | sábado 14 (D−3) |
+| Job diario | miércoles 18 | viernes 13 (D−5) | domingo 15 (D−3) |
+
+- **XM también publica en fines de semana y festivos.** El sábado 14 a las 18:08 el martes 10 seguía parcial (0,27); el domingo 15 a las 12:04 ya estaba completo (1,07). Entre el domingo y el lunes festivo se completó el miércoles 11. La variante de días hábiles de §3.2 queda descartada.
+- **Se confirma la hipótesis A (días calendario).** En siete mediciones, de martes a miércoles de la semana siguiente y con un sábado, un domingo y un festivo, `DemaCome` estuvo completa hasta D−5 y `Gene` hasta D−3. El retraso no depende del día de emisión.
+- **`DATA_LAG_DAYS = 5` y `GENERATION_LAG_DAYS = 3` quedan fijos.** Son los valores provisionales con los que se hicieron el backtest y el entrenamiento de la Fase 2, así que no hay que repetirlos.
+- **Siguen sin aparecer estados intermedios.** Todos los días que se completaron en esta semana (del 6 al 13 de noviembre en `DemaCome`) pasaron de una razón `DemaCome` / `Gene` de 0,2x a 1,00 de un salto. La señal 2 (§3.1) no ha tenido que rechazar nada, pero se mantiene porque no cuesta nada.
+- **Ningún día completo de `DemaCome` cambió** entre el sábado 14 y el lunes 16 (días del 15 de octubre al 10 de noviembre). Solo cambió el día que se completaba, y `Gene` de ese mismo día un 0,002 % a 0,004 %, el patrón de §3.3.
+- **Límite:** la semana no tuvo dos días no hábiles seguidos con un festivo de por medio, como Semana Santa o fin de año. Si XM se atrasa en esas fechas, el job diario lo nota: emite con los datos que haya y falla con un mensaje claro si pasan más de `MAX_EXTRA_LAG_DAYS` días.
 
 ## 4. Profundidad de la historia y estabilidad del formato
 
