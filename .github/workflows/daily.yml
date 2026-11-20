@@ -2,8 +2,8 @@ name: Daily forecast
 
 on:
   schedule:
-    # 20:17 UTC is 15:17 in Bogota. GitHub may start scheduled runs late.
-    - cron: "17 20 * * *"
+    # 16:17 UTC is 11:17 in Bogota. GitHub has started it 3.5 to 6.5 hours late.
+    - cron: "17 16 * * *"
   workflow_dispatch:
 
 permissions:
