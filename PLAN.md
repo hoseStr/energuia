@@ -207,7 +207,7 @@ Datos confirmados leyendo el código de `pydataxm` 0.3.19 (no hace falta reverif
 > - **El umbral de drift se calibra con el propio entrenamiento**: el de Evidently por defecto marcaría el 93 % de los meses normales.
 > - **El panel se publica como artefacto de GitHub Pages**; `site/` no se commitea.
 
-- [x] `daily.yml` (cron diario; recordar que el cron de GitHub usa UTC y puede retrasarse): *(Escrito el 2026-11-15, a las 20:17 UTC. El cron corre en GitHub desde el 15 de noviembre, con entre 3,5 y 6,5 horas de retraso.)*
+- [x] `daily.yml` (cron diario; recordar que el cron de GitHub usa UTC y puede retrasarse): *(Escrito el 2026-11-15, a las 20:17 UTC. El cron corre en GitHub desde el 15 de noviembre, con entre 3,5 y 6,5 horas de retraso. El 2026-11-19 se adelantó a las 16:17 UTC para ganar margen antes de la medianoche de Bogotá.)*
   1. Ingesta incremental de datos reales.
   2. Evaluar los pronósticos pasados cuyos datos reales ya llegaron; agregar a `data/metrics/`.
   3. Emitir el pronóstico del siguiente día objetivo y agregarlo a `data/predictions/` con versión del modelo y momento de emisión.

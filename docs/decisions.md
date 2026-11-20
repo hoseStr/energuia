@@ -2,6 +2,13 @@
 
 Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más recientes van primero.
 
+## 2026-11-19: cron adelantado
+
+- **El cron de `daily.yml` pasa de las 20:17 a las 16:17 UTC (de las 15:17 a las 11:17 de Bogotá).** Lo decidió el usuario. En las cinco corridas programadas (15 al 19 de noviembre) GitHub arrancó entre 3 h 41 min y 6 h 38 min tarde, y la más tardía empezó a las 02:55 UTC: quedaban dos horas antes de las 05:00 UTC, la medianoche de Bogotá, cuando el día objetivo se pierde. Con los mismos retrasos, el job arrancará entre las 14:58 y las 17:55 de Bogotá, y el margen sube a unas seis horas.
+- **Riesgo que se acepta:** si GitHub arranca a tiempo y XM todavía no ha publicado, el job no falla: emite con la demanda hasta D−6 y ese pronóstico queda fijo en la bitácora. Solo hay una medición diurna de la hora de publicación (`data_notes.md` §3.3: a las 11:02 ya estaba). Para detectarlo basta comparar `demand_last_day` con `issued_at` en `data/predictions/`; hasta hoy siempre fue D−5.
+- **No se agregó un segundo cron de respaldo.** Sería inofensivo, porque `daily` no hace nada si el pronóstico del día ya está registrado, pero por ahora no hace falta.
+- **`retrain.yml` sigue los domingos a las 12:17 UTC.** Ahora queda a cuatro horas del job diario en vez de a ocho. Los dos workflows comparten el grupo de `concurrency`, así que nunca corren a la vez.
+
 ## 2026-11-18: retrasos fijos y cierre de la Fase 4
 
 - **`DATA_LAG_DAYS = 5` y `GENERATION_LAG_DAYS = 3` dejan de ser provisionales.** Los snapshots del sábado 14, el domingo 15 y el lunes festivo 16, más los datos del job diario del 17 y el 18, dieron el mismo retraso que los días hábiles: XM publica todos los días y el retraso no depende del día de emisión (`data_notes.md` §3.5). `available_history` no cambia, y el backtest y el entrenamiento de la Fase 2 siguen valiendo porque ya usaban estos valores. Con esto se cierra la última casilla de la Fase 2.
@@ -59,7 +66,7 @@ Cambios respecto a PLAN.md y decisiones tomadas por el camino. Las más reciente
   | 10 | D−15 | 4,20 | 3,72 | 2,62 |
 
   Con una semana de atraso el modelo (2,46 %) sigue por debajo del mejor baseline con datos al día (3,40 %). Siete días cubren un atraso por fin de semana y festivos como Semana Santa; más allá, el job falla y avisa. El número lo propuso Claude con esta tabla; el usuario puede cambiarlo.
-- **Hora del cron: 20:17 UTC (15:17 en Bogotá).** Deja cuatro horas después de las 11:00, que es la única medición diurna de publicación de XM, y casi nueve antes de la medianoche. Si GitHub arranca la corrida después de la medianoche de Bogotá, ese día objetivo se queda sin pronóstico.
+- **Hora del cron: 20:17 UTC (15:17 en Bogotá).** *(Adelantada a las 16:17 UTC el 2026-11-19; ver esa entrada.)* Deja cuatro horas después de las 11:00, que es la única medición diurna de publicación de XM, y casi nueve antes de la medianoche. Si GitHub arranca la corrida después de la medianoche de Bogotá, ese día objetivo se queda sin pronóstico.
 
 ### API
 

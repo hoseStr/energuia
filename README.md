@@ -23,7 +23,7 @@ La API corre en la capa gratuita de Render y se duerme tras 15 minutos sin tráf
 flowchart TD
     XM["API pública de XM<br/>demanda y generación horarias"]
 
-    subgraph daily["Job diario · GitHub Actions · 15:17 de Bogotá"]
+    subgraph daily["Job diario · GitHub Actions · 11:17 de Bogotá"]
         direction TB
         ING["1. Ingesta y validación"]
         EVAL["2. Evaluar pronósticos pasados<br/>contra el dato real"]
