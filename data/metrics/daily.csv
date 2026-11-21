@@ -1,1 +1,2 @@
 target_day,day_type,model_version,actual_kwh,predicted_kwh,mae_kwh,mape_percent
+2026-11-16,sunday_or_holiday,20261113T215929Z,230888017.320,223855680.695,293014.026,3.0855
