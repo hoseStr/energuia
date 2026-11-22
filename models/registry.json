@@ -75,5 +75,19 @@
         }
       }
     }
+  ],
+  "decisions": [
+    {
+      "decided_at": "2026-11-22T19:45:33+00:00",
+      "current_version": "20261113T215929Z",
+      "window_start": "2026-11-09",
+      "window_end": "2026-11-16",
+      "days": 8,
+      "current_mape": 3.2136,
+      "retrained_mape": 3.1833,
+      "promoted": false,
+      "reason": "only 8 of the 28 days needed have been published since the current model was trained",
+      "new_version": null
+    }
   ]
 }
